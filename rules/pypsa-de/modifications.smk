@@ -272,3 +272,74 @@ rule cluster_wasserstoff_kernnetz:
         kernnetz=config_provider("wasserstoff_kernnetz"),
     script:
         scripts("pypsa-de/cluster_wasserstoff_kernnetz.py")
+
+
+# Lüneburg 11-node topology: synthetic buses N02–N11 + adjacency lines.
+# Enabled via config key lueneburg.enable (set in config.lueneburg.yaml, Step 4).
+rule add_lueneburg_synthetic_buses:
+    input:
+        network=resources("networks/simplified.nc"),
+        onshore_regions=resources("onshore_regions_simplified.geojson"),
+        nodes="../Data/nodes/lueneburg_11_nodes.geojson",
+        adjacency="../Data/nodes/Lueneburg_11_adjacency_matrix.csv",
+        nodes_csv="../Data/nodes/nodes.csv",
+    output:
+        network=resources("networks/simplified_lueneburg.nc"),
+        onshore_regions=resources("onshore_regions_simplified_lueneburg.geojson"),
+    log:
+        logs("add_lueneburg_synthetic_buses.log"),
+    resources:
+        mem_mb=4000,
+    params:
+        s_nom=config_provider("lueneburg", "s_nom", default=200.0),
+    script:
+        scripts("pypsa-de/add_lueneburg_synthetic_buses.py")
+
+
+# WHY: national demand raster misses N02–N11 and understates Landkreis load/shape.
+# Overlay Energiemonitor 521 GWh + Avacon profile onto N01AC…N11AC (see script docstring).
+rule modify_electricity_demand:
+    input:
+        demand=resources("electricity_demand.nc"),
+    output:
+        demand=resources("electricity_demand-modified.nc"),
+    log:
+        logs("modify_electricity_demand.log"),
+    resources:
+        mem_mb=3000,
+    params:
+        annual_gwh=521.0,
+    script:
+        scripts("pypsa-de/modify_electricity_demand.py")
+
+
+# WHY: stock heat annuals/shapes miss synthetic nodes and local Heitkötter totals.
+rule modify_heat_demand:
+    input:
+        heat_nc=resources("hourly_heat_demand_total.nc"),
+        heat_totals=resources("pop_weighted_heat_totals.csv"),
+        energy_totals=resources("pop_weighted_energy_totals.csv"),
+    output:
+        heat_nc=resources("hourly_heat_demand_total-modified.nc"),
+        heat_totals=resources("pop_weighted_heat_totals-modified.csv"),
+        energy_totals=resources("pop_weighted_energy_totals-modified.csv"),
+    log:
+        logs("modify_heat_demand.log"),
+    resources:
+        mem_mb=4000,
+    script:
+        scripts("pypsa-de/modify_heat_demand.py")
+
+
+# WHY: use local Fernwärme register on N01–N11 instead of NUTS3 egon average.
+rule modify_lueneburg_dh_share:
+    input:
+        district_heat_share=resources("district_heat_share_{horizon}-modified.csv"),
+    output:
+        district_heat_share=resources("district_heat_share_{horizon}-lueneburg.csv"),
+    log:
+        logs("modify_lueneburg_dh_share_{horizon}.log"),
+    resources:
+        mem_mb=1000,
+    script:
+        scripts("pypsa-de/modify_lueneburg_dh_share.py")

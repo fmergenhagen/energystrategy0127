@@ -313,8 +313,13 @@ def update_heat_pump_efficiency(n: pypsa.Network, n_p: pypsa.Network, year: int)
         year
     )
     # update efficiency of heat pumps in previous iteration in-place to efficiency in this iteration
+    n_p.links_t["efficiency"] = _drop_duplicate_columns(
+        n_p.links_t["efficiency"], "previous network links_t.efficiency"
+    )
     n_p.links_t["efficiency"].loc[:, heat_pump_idx_previous_iteration] = (
-        n.links_t["efficiency"]
+        _drop_duplicate_columns(
+            n.links_t["efficiency"], "current network links_t.efficiency"
+        )
         .reindex(columns=corresponding_idx_this_iteration, fill_value=0)
         .values
     )
@@ -322,15 +327,41 @@ def update_heat_pump_efficiency(n: pypsa.Network, n_p: pypsa.Network, year: int)
     # Change efficiency2 for heat pumps that use an explicitly modelled heat source
     # Only update if efficiency2 exists (sector-coupled networks only)
     if "efficiency2" in n_p.links_t and "efficiency2" in n.links_t:
-        previous_iteration_columns = heat_pump_idx_previous_iteration.intersection(
-            n_p.links_t["efficiency2"].columns
+        e2_previous = _drop_duplicate_columns(
+            n_p.links_t["efficiency2"], "previous network links_t.efficiency2"
         )
-        current_iteration_columns = corresponding_idx_this_iteration.intersection(
-            n.links_t["efficiency2"].columns
+        e2_current = _drop_duplicate_columns(
+            n.links_t["efficiency2"], "current network links_t.efficiency2"
         )
-        n_p.links_t["efficiency2"].loc[:, previous_iteration_columns] = (
-            n.links_t["efficiency2"].loc[:, current_iteration_columns].values
+        n_p.links_t["efficiency2"] = e2_previous
+
+        # pair previous/current names explicitly and keep only pairs present on
+        # both sides, so the assignment is aligned by name, not by position
+        name_map = pd.Series(
+            corresponding_idx_this_iteration, index=heat_pump_idx_previous_iteration
         )
+        name_map = name_map[
+            name_map.index.isin(e2_previous.columns)
+            & name_map.isin(e2_current.columns)
+        ]
+        n_p.links_t["efficiency2"].loc[:, name_map.index] = e2_current.loc[
+            :, name_map.values
+        ].values
+
+
+def _drop_duplicate_columns(df: pd.DataFrame, label: str) -> pd.DataFrame:
+    """
+    Drop duplicated columns (keep first) and warn, since positional
+    assignments on time-series frames break with duplicate column labels.
+    """
+    duplicated = df.columns.duplicated()
+    if duplicated.any():
+        logger.warning(
+            f"Dropping {duplicated.sum()} duplicated columns in {label}: "
+            f"{sorted(set(df.columns[duplicated]))}"
+        )
+        df = df.loc[:, ~duplicated]
+    return df
 
 
 def update_dynamic_ptes_capacity(

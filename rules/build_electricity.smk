@@ -760,17 +760,63 @@ def input_custom_busmap(w):
     }
 
 
+def input_cluster_network_topology(w):
+    """Use Lüneburg-augmented simplified network when lueneburg.enable is set."""
+    if config_provider("lueneburg", "enable", default=False)(w):
+        return {
+            "network": resources("networks/simplified_lueneburg.nc"),
+            "onshore_regions": resources(
+                "onshore_regions_simplified_lueneburg.geojson"
+            ),
+        }
+    return {
+        "network": resources("networks/simplified.nc"),
+        "onshore_regions": resources("onshore_regions_simplified.geojson"),
+    }
+
+
+def input_electricity_demand(w):
+    # WHY: compose/time_aggregation must see the Lüneburg overlay, not the raw cluster file.
+    if config_provider("lueneburg", "enable", default=False)(w):
+        return resources("electricity_demand-modified.nc")
+    return resources("electricity_demand.nc")
+
+
+def input_hourly_heat_demand(w):
+    if config_provider("lueneburg", "enable", default=False)(w):
+        return resources("hourly_heat_demand_total-modified.nc")
+    return resources("hourly_heat_demand_total.nc")
+
+
+def input_pop_weighted_heat_totals(w):
+    if config_provider("lueneburg", "enable", default=False)(w):
+        return resources("pop_weighted_heat_totals-modified.csv")
+    return resources("pop_weighted_heat_totals.csv")
+
+
+def input_pop_weighted_energy_totals(w):
+    if config_provider("lueneburg", "enable", default=False)(w):
+        return resources("pop_weighted_energy_totals-modified.csv")
+    return resources("pop_weighted_energy_totals.csv")
+
+
+def input_district_heat_share(w):
+    # After egon modify; Lüneburg swaps in local Fernwärme fractions.
+    if config_provider("lueneburg", "enable", default=False)(w):
+        return resources("district_heat_share_{horizon}-lueneburg.csv")
+    return resources("district_heat_share_{horizon}-modified.csv")
+
+
 rule cluster_network:
     input:
         unpack(input_custom_busmap),
-        network=resources("networks/simplified.nc"),
+        unpack(input_cluster_network_topology),
         admin_shapes=resources("admin_shapes.geojson"),
         bidding_zones=lambda w: (
             resources("bidding_zones.geojson")
             if config_provider("clustering", "mode")(w) == "administrative"
             else []
         ),
-        onshore_regions=resources("onshore_regions_simplified.geojson"),
         offshore_regions=resources("offshore_regions_simplified.geojson"),
         hac_features=lambda w: (
             resources("hac_features.nc")

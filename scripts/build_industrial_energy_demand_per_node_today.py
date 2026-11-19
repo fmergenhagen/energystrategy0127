@@ -19,7 +19,7 @@ from itertools import product
 import numpy as np
 import pandas as pd
 
-from scripts._helpers import configure_logging, set_scenario_config
+from scripts._helpers import bus_country, configure_logging, set_scenario_config
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ def build_nodal_industrial_energy_demand():
 
     fn = snakemake.input.industrial_distribution_key
     keys = pd.read_csv(fn, index_col=0)
-    keys["country"] = keys.index.str[:2]
+    keys["country"] = keys.index.map(bus_country)
 
     nodal_demand = pd.DataFrame(
         0.0, dtype=float, index=keys.index, columns=industrial_demand.index

@@ -32,7 +32,7 @@ import country_converter as coco
 import geopandas as gpd
 import pandas as pd
 
-from scripts._helpers import configure_logging, set_scenario_config
+from scripts._helpers import bus_country, configure_logging, set_scenario_config
 
 logger = logging.getLogger(__name__)
 cc = coco.CountryConverter()
@@ -106,7 +106,7 @@ def prepare_hotmaps_database(fn: str, regions: gpd.GeoDataFrame) -> gpd.GeoDataF
     gdf = gpd.sjoin(gdf, regions, how="inner", predicate="within")
 
     gdf.rename(columns={"name": "bus"}, inplace=True)
-    gdf["country"] = gdf.bus.str[:2]
+    gdf["country"] = gdf.bus.map(bus_country)
 
     # the .sjoin can lead to duplicates if a geom is in two overlapping regions
     if gdf.index.duplicated().any():
@@ -161,7 +161,7 @@ def prepare_gem_steel_database(fn: str, regions: gpd.GeoDataFrame) -> gpd.GeoDat
     gdf = gpd.sjoin(gdf, regions, how="inner", predicate="within")
 
     gdf.rename(columns={"name": "bus"}, inplace=True)
-    gdf["country"] = gdf.bus.str[:2]
+    gdf["country"] = gdf.bus.map(bus_country)
 
     return gdf
 
@@ -191,7 +191,7 @@ def prepare_gem_cement_database(fn: str, regions: gpd.GeoDataFrame) -> gpd.GeoDa
     gdf = gpd.sjoin(gdf, regions, how="inner", predicate="within")
 
     gdf.rename(columns={"name": "bus"}, inplace=True)
-    gdf["country"] = gdf.bus.str[:2]
+    gdf["country"] = gdf.bus.map(bus_country)
 
     return gdf
 
@@ -208,7 +208,7 @@ def prepare_ammonia_database(fn: str, regions: gpd.GeoDataFrame) -> gpd.GeoDataF
     gdf = gpd.sjoin(gdf, regions, how="inner", predicate="within")
 
     gdf.rename(columns={"name": "bus"}, inplace=True)
-    gdf["country"] = gdf.bus.str[:2]
+    gdf["country"] = gdf.bus.map(bus_country)
 
     return gdf
 
@@ -228,7 +228,7 @@ def prepare_refineries_supplement(
     gdf = gpd.sjoin(gdf, regions, how="inner", predicate="within")
 
     gdf.rename(columns={"name": "bus"}, inplace=True)
-    gdf["country"] = gdf.bus.str[:2]
+    gdf["country"] = gdf.bus.map(bus_country)
 
     return gdf
 
@@ -250,7 +250,7 @@ def build_nodal_distribution_key(
     keys = pd.DataFrame(index=regions.index, columns=sectors, dtype=float)
 
     pop = pd.read_csv(snakemake.input.clustered_pop_layout, index_col=0)
-    pop["country"] = pop.index.str[:2]
+    pop["country"] = pop.index.map(bus_country)
     ct_total = pop.total.groupby(pop["country"]).sum()
     keys["population"] = pop.total / pop.country.map(ct_total)
 

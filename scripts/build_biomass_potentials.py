@@ -7,6 +7,7 @@ using data from JRC ENSPRESO.
 """
 
 import logging
+import re
 
 import geopandas as gpd
 import numpy as np
@@ -16,6 +17,14 @@ from scripts._helpers import configure_logging, set_scenario_config
 
 logger = logging.getLogger(__name__)
 AVAILABLE_BIOMASS_YEARS = [2010, 2020, 2030, 2040, 2050]
+
+
+def _bus_country(name: str) -> str:
+    # WHY: LG synthetic N01AC–N11AC are DE; name[:2] would be N0/N1.
+    name = str(name)
+    if re.match(r"^N\d{2}", name):
+        return "DE"
+    return name[:2]
 
 
 def _calc_unsustainable_potential(df, df_unsustainable, share_unsus, resource_type):
@@ -46,8 +55,10 @@ def _calc_unsustainable_potential(df, df_unsustainable, share_unsus, resource_ty
         resource_potential = df_unsustainable[resource_type]
 
     def _calculate_resource_allocation(c):
-        country = c.name[:2]
-        country_total = df.loc[df.index.str[:2] == country].sum().sum()
+        country = _bus_country(c.name)
+        country_total = (
+            df.loc[df.index.map(_bus_country) == country].sum().sum()
+        )
         if country_total == 0:
             return 0.0
         return c.sum() / country_total * resource_potential.loc[country]

@@ -27,7 +27,7 @@ import logging
 
 import pandas as pd
 
-from scripts._helpers import configure_logging, set_scenario_config
+from scripts._helpers import bus_country, configure_logging, set_scenario_config
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     nodal_today = pd.read_csv(fn, index_col=0)
 
     nodal_sector_ratios = pd.concat(
-        {node: sector_ratios[node[:2]] for node in nodal_production.index}, axis=1
+        {node: sector_ratios[bus_country(node)] for node in nodal_production.index}, axis=1
     )
 
     nodal_production_stacked = nodal_production.stack()

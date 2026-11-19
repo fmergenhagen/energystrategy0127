@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: Waermeziel Lüneburg study
+# SPDX-License-Identifier: CC0-1.0
+#
+# WHY separate from scenarios.manual.yaml: keep Ariadne runs clean; LG study has
+# its own S0/S1 keys under run.prefix=lueneburg.
+#
+# Framing (study RQ):
+#   S0 = 2025 “today” baseline (report horizon 2025)
+#   S1 = 2040 pathway with no fossil heating (report horizon 2040)
+#
+# Demand:
+#   Energiemonitor 521 GWh is exogenous for *today* (S0/2025) only.
+#   In 2040, extra electricity for heat is endogenous (HP / resistive);
+#   do not treat 521 GWh as the full 2040 story.
+#
+# S1 heating (absolute — not only “no new decentral”):
+#   absolute_fossil_heat_ban DE:2039 → in horizon 2040 drop ALL gas/oil boilers
+#   (central + decentral, existing + new) and fossil CHP heat on DE / N**.
+#   Remaining heat pathways: large-scale DH HPs + individual HPs (+ non-fossil
+#   biomass/H2/waste CHP if still in the stock model).
+#   new_decentral_fossil_boiler_ban kept as belt-and-braces for stock Ariadne path.
+#
+# S1 wastewater heat pump (Klärwerk Lüneburg → Fernwärme Mitte, from 2030):
+#   fixed 10.4 MW_th heat pump (2 × 5.2 MW Großwärmepumpen) on N01AC, drawing
+#   electricity at COP from DH forward/return temps + wastewater source temp.
+#   Source: Hansestadt / AGL / Avacon Natur Kooperation (Abwasserwärme).
+#
+# S1 power: new power capacity in Landkreis Lüneburg (N01–N11) only renewable;
+#   no new gas/oil/coal/lignite plants or fossil CHPs there. DE-rest unchanged.
+#
+# DH shares: horizon-aware via modify_lueneburg_dh_share
+#   2025 → Data/Heat/lueneburg_dh_share.csv (today register)
+#   2040 → Data/Heat/lueneburg_dh_share_2040.csv (study pathway shares)
+#
+# Myopic still builds 2025 then 2040 for both runs; KPI compare is S0@2025 vs S1@2040.
+
+S0: {}
+
+S1:
+  new_decentral_fossil_boiler_ban:
+    DE: 2039
+  absolute_fossil_heat_ban:
+    DE: 2039
+  lueneburg:
+    renewables_only_new_power: true
+    wastewater_waste_heat:
+      enable: true
+      bus: N01AC
+      p_nom_mw: 10.4  # 2 x 5.2 MW Heizleistung (Pressemitteilung 25.08.2026)
+      # treated-wastewater temperature (assumption: German WWTP effluent
+      # ~10–20 °C over the year; press release gives no value)
+      source_temperature_celsius: 15.0
+      start_year: 2030
+      # https://www.hansestadt-lueneburg.de/rathaus/aktuelles/pressemitteilungen/meilenstein-fuer-die-energiewende-in-lueneburgs-fernwaerme-hansestadt-agl-und-avacon-natur-unterzeichnen-kooperationsvertrag-fuer-waerme-aus-abwasser.html

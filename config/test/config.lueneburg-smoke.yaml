@@ -1,0 +1,89 @@
+# SPDX-FileCopyrightText: Waermeziel Lüneburg study
+# SPDX-License-Identifier: CC0-1.0
+#
+# Self-contained smoke config for Lüneburg topology (1 week, 3h).
+# Includes the topology keys from config.lueneburg.yaml so a SINGLE
+# --configfile is enough (pixi run can drop a second --configfile).
+#
+#   pixi run snakemake -call cluster_network \
+#     --configfile=config/test/config.lueneburg-smoke.yaml
+#
+# Or with pixi forwarding multiple files:
+#   pixi run -- snakemake -call cluster_network \
+#     --configfile=config/config.lueneburg.yaml \
+#     --configfile=config/test/config.lueneburg-smoke.yaml
+
+run:
+  prefix: lueneburg-smoke
+  # String name + scenarios off → no {run} wildcard.
+  name: KN2045_Mix
+  scenarios:
+    enable: false
+  shared_resources:
+    policy: false
+
+lueneburg:
+  enable: true
+  s_nom: 200.0
+
+countries: ['DE']
+
+foresight: myopic
+
+planning_horizons:
+- 2025
+
+snapshots:
+  start: "2013-03-01"
+  end: "2013-03-08"
+  inclusive: left
+
+atlite:
+  default_cutout: de-03-2013-sarah3-era5
+  cutouts:
+    de-03-2013-sarah3-era5:
+      module: [sarah, era5]
+      x: [5.5, 15.5]
+      y: [47.0, 55.5]
+      dx: 0.3
+      dy: 0.3
+      time: ["2013-03-01", "2013-03-08"]
+
+renewable:
+  onwind:
+    cutout: de-03-2013-sarah3-era5
+  offwind-ac:
+    cutout: de-03-2013-sarah3-era5
+  offwind-dc:
+    cutout: de-03-2013-sarah3-era5
+  offwind-float:
+    cutout: de-03-2013-sarah3-era5
+  solar:
+    cutout: de-03-2013-sarah3-era5
+  solar-hsat:
+    cutout: de-03-2013-sarah3-era5
+
+lines:
+  dynamic_line_rating:
+    cutout: de-03-2013-sarah3-era5
+
+electricity:
+  base_network: osm
+
+clustering:
+  mode: custom_busshapes
+  focus_weights: false
+  copperplate_regions: []
+  cluster_network:
+    n_clusters: 12
+  temporal:
+    averaging: 3h
+    resolution_sector: 3H
+
+solving:
+  mem_mb: 8000
+  options:
+    transmission_losses: false
+  solver:
+    name: highs
+    options: highs-default

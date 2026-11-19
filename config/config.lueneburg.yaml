@@ -1,0 +1,149 @@
+# SPDX-FileCopyrightText: Waermeziel Lüneburg study
+# SPDX-License-Identifier: CC0-1.0
+#
+# Overlay for Landkreis Lüneburg (11 Samt-/Einheitsgemeinden + copperplate DE-rest).
+# Loaded on top of config.default.yaml + config.de.yaml:
+#
+#   pixi run snakemake -call resources/lueneburg/KN2045_Mix/networks/clustered.nc \
+#     --configfile=config/config.lueneburg.yaml
+#
+# Smoke test (1 week) — use the self-contained smoke file (single --configfile;
+# pixi run can drop a second --configfile unless you write: pixi run -- snakemake ...):
+#
+#   rm -rf resources/lueneburg-smoke
+#   pixi run snakemake -call cluster_network \
+#     --configfile=config/test/config.lueneburg-smoke.yaml
+#
+# Design:
+#   - countries: DE only (no Stromnachbarn for v1)
+#   - custom_busshapes: data/busshapes/simplified_12_osm.geojson (N01..N11 + DE-rest)
+#   - lueneburg.enable: inject synthetic buses N02–N11 before clustering
+#   - temporal.averaging: 24h  (~365 snapshots; sized for ~8 GB laptop)
+#   - planning_horizons: 2025 + 2040 (myopic path; KPIs: S0@2025 vs S1@2040)
+#   - solver: Gurobi barrier (gurobi-default)
+#
+# Scenarios (Step 8):
+#   S0 = today/2025 baseline; S1 = 2040 no fossil heating
+#   pixi run snakemake -call … --configfile=config/config.lueneburg.yaml
+#   → resources/lueneburg/S0/… and …/S1/…
+#
+# Demand: Step-5 521 GWh overlay = exogenous *today* only (see progress.tex).
+# Transport/EVs: left on (config.de pathway) — they add el demand by 2040;
+#   freeze EV share at 2025 if you want a heat-only RQ.
+
+run:
+  prefix: lueneburg
+  name:
+  - S0
+  - S1
+  scenarios:
+    enable: true
+    # Point file+manual at the same LG file (no Ariadne build_scenarios needed for v1).
+    manual_file: config/scenarios.lueneburg.yaml
+    file: config/scenarios.lueneburg.yaml
+  # WHY false (not base): base drops run.prefix from shared paths →
+  # resources/networks/... instead of resources/lueneburg/.... Keep
+  # scenarios separate; build shipdensity one-at-a-time with -j 1 if needed.
+  shared_resources:
+    policy: false
+
+# Topology: synthetic N02–N11 + adjacency lines (scripts/pypsa-de/add_lueneburg_synthetic_buses.py)
+lueneburg:
+  enable: true
+  s_nom: 200.0  # MW placeholder for intra-Landkreis lines; refine later
+  # Every N**AC node gets its own extendable AC line to copperplate DE-restAC
+  # (copy of the existing DE-rest–N01 line, starting at s_nom MW).
+  connect_all_to_de_rest: true
+  # Base year (2025) = today's Landkreis: no new power plants, CHPs, PtX or
+  # wind/solar on N01–N11 (MaStR + existing stock only). Heating stays free.
+  freeze_base_year: true
+  # No waste incinerator in the Landkreis: plastic waste (non-sequestered HVC)
+  # from N01–N11 can be shipped for free to DE-rest waste CHPs.
+  export_waste_to_de_rest: true
+  # Base year: exogenous LG electricity loads (households/services, industry,
+  # agriculture, EVs) scaled together to Energiemonitor Verbrauch 2025.
+  base_year_electricity_gwh: 521.0
+  # part of the 521 GWh already used by existing heat pumps / electric heating
+  # (endogenous in the model); subtracted from the scaling target
+  base_year_heat_electricity_gwh: 0.0
+  # Step 5 demand overlay (521 GWh + Avacon) is gated by enable above;
+  # annual total is hardcoded in modify_electricity_demand (Energiemonitor 2025).
+
+countries: ['DE']
+
+foresight: myopic
+
+planning_horizons:
+- 2025
+- 2040
+
+snapshots:
+  start: "2013-01-01"
+  end: "2014-01-01"
+  inclusive: left
+
+# WHY: stock europe-2013 is ~6 GB and OOMs on 8 GB laptops during atlite.
+# We keep the archive name but currently point the file at a DE+NS subset
+# (data/cutout/archive/v1.0/de-2013-sarah3-era5.nc → europe-2013-….nc).
+# Full Europe saved as europe-2013-sarah3-era5.FULL.nc if needed later.
+atlite:
+  default_cutout: europe-2013-sarah3-era5
+  cutouts:
+    europe-2013-sarah3-era5:
+      module: [sarah, era5]
+      x: [3., 16.]
+      y: [47., 56.]
+      dx: 0.3
+      dy: 0.3
+      time: ['2013', '2013']
+
+renewable:
+  onwind:
+    cutout: europe-2013-sarah3-era5
+  offwind-ac:
+    cutout: europe-2013-sarah3-era5
+  offwind-dc:
+    cutout: europe-2013-sarah3-era5
+  offwind-float:
+    cutout: europe-2013-sarah3-era5
+  solar:
+    cutout: europe-2013-sarah3-era5
+  solar-hsat:
+    cutout: europe-2013-sarah3-era5
+
+lines:
+  dynamic_line_rating:
+    cutout: europe-2013-sarah3-era5
+
+electricity:
+  base_network: osm
+
+clustering:
+  mode: custom_busshapes
+  focus_weights: false
+  copperplate_regions: []
+  cluster_network:
+    n_clusters: 12  # must match simplified_12_osm.geojson
+  temporal:
+    averaging: 24h
+    # keep resolution_sector for ariadne export/plot scripts that still read it
+    resolution_sector: 24H
+
+# WHY: Manz et al. 2024 geothermal for DH (Fordatis). Default urban central is
+# air-only; add geothermal so DH can use Manz utilisation potentials.
+sector:
+  heat_pump_sources:
+    urban central:
+    - air
+    - geothermal
+
+solving:
+  mem_mb: 12000
+  options:
+    transmission_losses: false  # saves RAM vs secants; re-enable for final runs if needed
+  solver:
+    name: gurobi
+    options: gurobi-default
+  solver_options:
+    gurobi-default:
+      threads: 8  # machine has 8 cores; default set asks for 16

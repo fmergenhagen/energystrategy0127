@@ -60,7 +60,8 @@ def get_compose_inputs(w):
             if cfg["co2_budget"]["relative"]
             else []
         ),
-        load=resources("electricity_demand.nc"),
+        # WHY call (w): unpack(get_compose_inputs) needs paths, not callables.
+        load=input_electricity_demand(w),  # Lüneburg: modified.nc when enable
         snapshot_weightings=resources("snapshot_weightings.csv"),
         network=(
             resources("networks/clustered.nc")
@@ -88,9 +89,9 @@ def get_compose_inputs(w):
                 if sector["gas_network"] or {"gas", "H2"} & set(import_carriers)
                 else []
             ),
-            pop_weighted_energy_totals=resources("pop_weighted_energy_totals.csv"),
+            pop_weighted_energy_totals=input_pop_weighted_energy_totals(w),
             pop_weighted_heat_totals=(
-                resources("pop_weighted_heat_totals.csv") if sector["heating"] else []
+                input_pop_weighted_heat_totals(w) if sector["heating"] else []
             ),
             shipping_demand=resources("shipping_demand.csv"),
             transport_demand=resources("transport_demand.csv"),
@@ -106,9 +107,9 @@ def get_compose_inputs(w):
             ),
             clustered_pop_layout=resources("pop_layout.csv"),
             industrial_demand=resources("industrial_energy_demand_{horizon}.csv"),
-            hourly_heat_demand_total=resources("hourly_heat_demand_total.nc"),
+            hourly_heat_demand_total=input_hourly_heat_demand(w),
             industrial_production=resources("industrial_production_{horizon}.csv"),
-            district_heat_share=resources("district_heat_share_{horizon}-modified.csv"),
+            district_heat_share=input_district_heat_share(w),
             heating_efficiencies=resources("heating_efficiencies.csv"),
             existing_heating_distribution=(
                 resources("existing_heating_distribution_{horizon}.csv")
@@ -121,6 +122,13 @@ def get_compose_inputs(w):
             temp_soil_total=resources("temp_soil_total.nc"),
             temp_air_total=resources("temp_air_total.nc"),
             cop_profiles=resources("cop_profiles_{horizon}.nc"),
+            # Lüneburg: COP of the Klärwerk wastewater heat pump (modify_prenetwork)
+            central_heating_forward_temperature_profiles=resources(
+                "central_heating_forward_temperature_profiles_{horizon}.nc"
+            ),
+            central_heating_return_temperature_profiles=resources(
+                "central_heating_return_temperature_profiles_{horizon}.nc"
+            ),
             direct_heat_source_utilisation_profiles=resources(
                 "direct_heat_source_utilisation_profiles_{horizon}.nc"
             ),
@@ -329,6 +337,9 @@ rule compose_network:
         pypsa_de_enabled=config_provider("pypsa-de", "enable"),
         technology_occurrence=config_provider("first_technology_occurrence"),
         fossil_boiler_ban=config_provider("new_decentral_fossil_boiler_ban"),
+        absolute_fossil_heat_ban=config_provider(
+            "absolute_fossil_heat_ban", default={}
+        ),
         coal_ban=config_provider("coal_generation_ban"),
         nuclear_ban=config_provider("nuclear_generation_ban"),
         H2_transmission_efficiency=config_provider(
@@ -346,6 +357,8 @@ rule compose_network:
         shipping_oil_efficiency=config_provider("sector", "shipping_oil_efficiency"),
         shipping_methanol_share=config_provider("sector", "shipping_methanol_share"),
         scale_capacity=config_provider("scale_capacity"),
+        # Lüneburg Step 7: MaStR existing capacities on N01–N11 (see modify_prenetwork)
+        lueneburg=config_provider("lueneburg", default={}),
         bev_charge_rate=config_provider("sector", "bev_charge_rate"),
         bev_energy=config_provider("sector", "bev_energy"),
         bev_dsm_availability=config_provider("sector", "bev_dsm_availability"),

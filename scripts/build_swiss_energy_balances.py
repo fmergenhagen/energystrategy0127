@@ -16,9 +16,26 @@ logger = logging.getLogger(__name__)
 
 def load_sheet(xlsx: pd.ExcelFile, sheet_name: str, index_col: str) -> pd.DataFrame:
     df = xlsx.parse(sheet_name, skiprows=5, index_col=index_col)
+    # WHY strip: BFE 2025 tables indent sub-rows with leading spaces.
+    df.index = df.index.map(lambda x: x.strip() if isinstance(x, str) else x)
     year_columns = [col for col in df.columns if isinstance(col, int)]
     df = df[year_columns].dropna(how="all", axis=0)
     return df
+
+
+def row(df: pd.DataFrame, *labels: str) -> pd.Series:
+    """Pick first matching index label; sum if several labels given.
+
+    WHY aliases: BFE renamed rows in 2024/2025 VWZ tables
+    (e.g. Total Endenergieverbrauch → Total; Schiene → Schiene*).
+    """
+    present = [lab for lab in labels if lab in df.index]
+    if not present:
+        raise KeyError(f"none of {labels} in {list(df.index)}")
+    if len(present) == 1 and len(labels) == 1:
+        return df.loc[present[0]]
+    # sum requested parts that exist (cooking split; alias fallbacks)
+    return df.loc[present].sum(axis=0)
 
 
 if __name__ == "__main__":
@@ -47,29 +64,33 @@ if __name__ == "__main__":
     tab38 = load_sheet(xlsx, "Tabelle38", index_col="Verkehrsträger")
 
     data = {
-        "total residential": tab17.loc["Total Endenergieverbrauch"],
-        "total residential space": tab17.loc["Raumwärme"],
-        "total residential water": tab17.loc["Warmwasser"],
-        "total residential cooking": tab17.loc["Kochen / Geschirrspüler"],
-        "electricity residential": tab18.loc["Total"],
-        "electricity residential space": tab18.loc["Raumwärme"],
-        "electricity residential water": tab18.loc["Warmwasser"],
-        "electricity residential cooking": tab18.loc["Kochherde"],
-        "total services": tab26.loc["Total Endenergie"],
-        "total services space": tab26.loc["Raumwärme"],
-        "total services water": tab26.loc["Warmwasser"],
-        "total services cooking": tab26.loc["Prozesswärme"],
-        "electricity services": tab28.loc["Total Elektrizität"],
-        "electricity services space": tab28.loc["Raumwärme"],
-        "electricity services water": tab28.loc["Warmwasser"],
-        "electricity services cooking": tab28.loc["Prozesswärme"],
-        "total rail": tab35.loc["Schiene"],
-        "total road": tab35.loc["Strasse"],
-        "electricity road": tab38.loc["Strasse"],
-        "electricity rail": tab38.loc["Schiene"],
-        "total domestic aviation": tab35.loc["Luft (Inland)"],
-        "total international aviation": tab1.loc["int. Flugverkehr"],
-        "total domestic navigation": tab35.loc["Wasser"],
+        "total residential": row(
+            tab17, "Total Endenergieverbrauch", "Total"
+        ),
+        "total residential space": row(tab17, "Raumwärme"),
+        "total residential water": row(tab17, "Warmwasser"),
+        "total residential cooking": row(
+            tab17, "Kochen / Geschirrspüler", "Kochen", "Geschirrspüler"
+        ),
+        "electricity residential": row(tab18, "Total"),
+        "electricity residential space": row(tab18, "Raumwärme"),
+        "electricity residential water": row(tab18, "Warmwasser"),
+        "electricity residential cooking": row(tab18, "Kochherde"),
+        "total services": row(tab26, "Total Endenergie", "Total"),
+        "total services space": row(tab26, "Raumwärme"),
+        "total services water": row(tab26, "Warmwasser"),
+        "total services cooking": row(tab26, "Prozesswärme"),
+        "electricity services": row(tab28, "Total Elektrizität", "Total"),
+        "electricity services space": row(tab28, "Raumwärme"),
+        "electricity services water": row(tab28, "Warmwasser"),
+        "electricity services cooking": row(tab28, "Prozesswärme"),
+        "total rail": row(tab35, "Schiene"),
+        "total road": row(tab35, "Strasse"),
+        "electricity road": row(tab38, "Strasse"),
+        "electricity rail": row(tab38, "Schiene", "Schiene*"),
+        "total domestic aviation": row(tab35, "Luft (Inland)"),
+        "total international aviation": row(tab1, "int. Flugverkehr"),
+        "total domestic navigation": row(tab35, "Wasser"),
         "total international navigation": 0,
     }
 

@@ -86,6 +86,11 @@ if __name__ == "__main__":
         )
 
     n = pypsa.Network(snakemake.input.network)
+    # Lüneburg: every N**AC node trades directly with copperplate DE-rest.
+    # Before brownfield so the new line names exist in every horizon.
+    modify_prenetwork.connect_lueneburg_nodes_to_de_rest(
+        n, getattr(params, "lueneburg", {}) or {}
+    )
     n_previous = None if is_first_horizon else pypsa.Network(inputs.network_previous)
     nyears = n.snapshot_weightings.objective.sum() / 8760.0
     costs = load_costs(snakemake.input.tech_costs)

@@ -197,9 +197,28 @@ def get_heat_source_power(
                     f"The onshore regions outside EU 27 {non_covered_regions.to_list()} have no heat source power. Set the ignore_missing_regions parameter in the config to true if you want to include these countries in your analysis despite missing geothermal data."
                 )
         else:
-            raise ValueError(
-                f"The onshore regions {non_covered_regions.to_list()} have no heat source power. The pre-processing of the potential data might be faulty."
-            )
+            # WHY: LG synthetic buses (N01AC–N11AC) can miss Manz LAU
+            # intersection even inside DE (tiny/rural polygons). Fill 0 so
+            # urban-central geothermal stays on for covered nodes (e.g. N01).
+            names = non_covered_regions.astype(str)
+            lg_mask = names.str.match(r"^N\d{2}")
+            lg_synth = non_covered_regions[lg_mask]
+            other = non_covered_regions[~lg_mask]
+            if len(lg_synth) > 0:
+                logger.warning(
+                    "LG synthetic regions %s have no Manz geothermal "
+                    "overlap; filling heat source power with zeros.",
+                    list(lg_synth),
+                )
+                heat_source_power = heat_source_power.reindex(
+                    onshore_regions.index, fill_value=0
+                )
+            if len(other) > 0:
+                raise ValueError(
+                    f"The onshore regions {list(other)} have no heat "
+                    "source power. The pre-processing of the potential data "
+                    "might be faulty."
+                )
 
     return heat_source_power
 

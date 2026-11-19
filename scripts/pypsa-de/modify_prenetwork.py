@@ -1,4 +1,6 @@
+import importlib.util
 import logging
+from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
@@ -7,6 +9,7 @@ import pypsa
 from shapely.geometry import Point
 
 from scripts._helpers import (
+    name_country,
     sanitize_custom_columns,
 )
 from scripts.prepare_sector_network import lossy_bidirectional_links
@@ -74,6 +77,24 @@ def remove_old_boiler_profiles(n):
         n.links_t[attr].drop(to_drop, axis=1, inplace=True)
 
 
+def _links_in_country(n, ct: str) -> pd.Series:
+    """Boolean mask: link name belongs to country (N**AC counts as DE)."""
+    return name_country(n.links.index) == ct
+
+
+def _drop_links(n, links) -> None:
+    """Drop links and any matching time-series columns."""
+    links = pd.Index(links).intersection(n.links.index)
+    if links.empty:
+        return
+    logger.info("Dropping %s links: %s", len(links), list(links))
+    n.links.drop(links, inplace=True)
+    for attr in list(getattr(n, "links_t", {})):
+        cols = links.intersection(n.links_t[attr].columns)
+        if len(cols):
+            n.links_t[attr].drop(cols, axis=1, inplace=True)
+
+
 def new_boiler_ban(n, fossil_boiler_ban, year):
 
     for ct in fossil_boiler_ban:
@@ -83,7 +104,7 @@ def new_boiler_ban(n, fossil_boiler_ban, year):
                 f"For year {year} in {ct} implementing ban on new decentral oil & gas boilers from {ban_year}"
             )
             links = n.links.index[
-                (n.links.index.str[:2] == ct)
+                _links_in_country(n, ct)
                 & (
                     n.links.index.str.contains("gas boiler")
                     ^ n.links.index.str.contains("oil boiler")
@@ -91,8 +112,371 @@ def new_boiler_ban(n, fossil_boiler_ban, year):
                 & n.links.p_nom_extendable
                 & ~n.links.index.str.contains("urban central")
             ]
-            logger.info(f"Dropping {links}")
-            n.links.drop(links, inplace=True)
+            _drop_links(n, links)
+
+
+def absolute_fossil_heat_ban(n, fossil_heat_ban, year):
+    """Remove all fossil heat supply (boilers + fossil CHP), not only new decentral.
+
+    Active when ban_year < planning horizon (same convention as new_boiler_ban).
+    Keeps non-fossil heat: HPs, resistive, biomass/H2/waste CHP, geothermal, waste heat.
+    """
+    if not fossil_heat_ban:
+        return
+
+    # carrier patterns: gas/oil boilers anywhere; fossil CHP (gas/oil/coal/lignite).
+    # Exclude biogas/biomass/H2 (substring "gas CHP" would otherwise hit "biogas CHP").
+    boiler = n.links.carrier.str.contains(
+        r"(?:gas|oil) boiler", case=False, na=False, regex=True
+    )
+    fossil_chp = n.links.carrier.str.contains(
+        r"(?:gas|oil|coal|lignite) CHP", case=False, na=False, regex=True
+    ) & ~n.links.carrier.str.contains(
+        r"biogas|biomass|H2", case=False, na=False, regex=True
+    )
+    is_fossil_heat = boiler | fossil_chp
+
+    for ct, ban_year in fossil_heat_ban.items():
+        if int(ban_year) >= year:
+            continue
+        logger.info(
+            "For year %s in %s implementing ABSOLUTE fossil heat ban from %s",
+            year,
+            ct,
+            ban_year,
+        )
+        links = n.links.index[_links_in_country(n, ct) & is_fossil_heat]
+        _drop_links(n, links)
+
+
+def _as_dict(cfg) -> dict:
+    if isinstance(cfg, dict):
+        return cfg
+    return dict(cfg) if cfg else {}
+
+
+def _wastewater_heat_pump_cop(n, inputs, params, node: str, source_temp_c: float):
+    """Daily-resolved COP of a DH heat pump on treated wastewater at ``node``.
+
+    Uses the stock CentralHeatingCopApproximator with the node's DH forward /
+    return temperatures and the stock approximation settings, so the Klärwerk
+    heat pump is consistent with the model's other central heat pumps.
+    """
+    import xarray as xr
+
+    from scripts.build_cop_profiles.central_heating_cop_approximator import (
+        CentralHeatingCopApproximator,
+    )
+
+    dh = params.sector["district_heating"]
+    approx = dh["heat_pump_cop_approximation"]
+    forward = xr.open_dataarray(
+        inputs.central_heating_forward_temperature_profiles
+    ).sel(name=node)
+    ret = xr.open_dataarray(inputs.central_heating_return_temperature_profiles).sel(
+        name=node
+    )
+    cop = CentralHeatingCopApproximator(
+        sink_outlet_temperature_celsius=forward.values,
+        sink_inlet_temperature_celsius=ret.values,
+        source_inlet_temperature_celsius=source_temp_c,
+        source_outlet_temperature_celsius=source_temp_c - dh["heat_source_cooling"],
+        refrigerant=approx["refrigerant"],
+        delta_t_pinch_point=approx["heat_exchanger_pinch_point_temperature_difference"],
+        isentropic_compressor_efficiency=approx["isentropic_compressor_efficiency"],
+        heat_loss=approx["heat_loss"],
+        min_delta_t_lift=approx["min_delta_t_lift"],
+    ).cop
+    cop = pd.Series(np.asarray(cop, dtype=float), index=pd.DatetimeIndex(forward.time.values))
+    # aggregate hourly COP onto the (possibly temporally clustered) snapshots
+    pos = n.snapshots.searchsorted(cop.index, side="right") - 1
+    cop = cop[pos >= 0].groupby(n.snapshots[pos[pos >= 0]]).mean()
+    return cop.reindex(n.snapshots).ffill().bfill()
+
+
+def add_lueneburg_wastewater_waste_heat(n, lueneburg_cfg, year, inputs, params):
+    """Klärwerk Lüneburg: committed wastewater heat pump into N01 district heating.
+
+    Two Großwärmepumpen of 5.2 MW Heizleistung each (Pressemitteilung Hansestadt
+    Lüneburg, 25.08.2026), operation from early 2030. Modelled as a fixed
+    (non-extendable, investment sunk) heat pump link with the stock heat pump
+    sign convention: p_nom is heat output on bus0, electricity is drawn from
+    bus1 with efficiency = 1/COP. COP follows the node's DH forward/return
+    temperatures and a constant treated-wastewater source temperature.
+    Enabled only when lueneburg.wastewater_waste_heat.enable (S1 scenario).
+    """
+    wh = _as_dict(_as_dict(lueneburg_cfg).get("wastewater_waste_heat"))
+    if not wh.get("enable"):
+        return
+    start = int(wh.get("start_year", 2030))
+    if year < start:
+        logger.info("Skipping wastewater heat pump in %s (starts %s)", year, start)
+        return
+
+    bus_el = str(wh.get("bus", "N01AC"))
+    heat_bus = str(wh.get("heat_bus", f"{bus_el} urban central heat"))
+    if heat_bus not in n.buses.index:
+        logger.warning("Wastewater heat pump: heat bus %s missing — skip", heat_bus)
+        return
+
+    p_nom = float(wh.get("p_nom_mw", 10.4))
+    source_temp = float(wh.get("source_temperature_celsius", 15.0))
+    cop = _wastewater_heat_pump_cop(n, inputs, params, bus_el, source_temp)
+
+    carrier = "wastewater heat pump"
+    if carrier not in n.carriers.index:
+        n.add("Carrier", carrier)
+    name = str(wh.get("name", f"{bus_el} {carrier}"))
+    n.add(
+        "Link",
+        name,
+        bus0=heat_bus,
+        bus1=bus_el,
+        carrier=carrier,
+        p_nom=p_nom,
+        p_nom_extendable=False,
+        p_min_pu=-1.0,
+        p_max_pu=0.0,
+        efficiency=1.0 / cop.clip(lower=0.001),
+        build_year=start,
+    )
+    logger.info(
+        "Added %s: %.1f MW_th → %s, source %.0f °C, COP mean %.2f (min %.2f, max %.2f)",
+        name,
+        p_nom,
+        heat_bus,
+        source_temp,
+        cop.mean(),
+        cop.min(),
+        cop.max(),
+    )
+
+
+LG_NODE_RE = r"^N\d{2}AC"
+
+
+def connect_lueneburg_nodes_to_de_rest(n, lueneburg_cfg, hub: str = "DE-restAC"):
+    """Give every Lüneburg node (N01AC…N11AC) its own AC line to copperplate DE-rest.
+
+    WHY: the clustered grid only links DE-rest to N01AC, so all trade of the
+    other Gemeinden had to pass through Hansestadt. New lines copy the existing
+    DE-rest–N** line (type, length, s_max_pu, capital cost, extension headroom),
+    start at ``lueneburg.s_nom`` MW and are extendable like it.
+    Must run before brownfield so line names match across horizons.
+    """
+    cfg = _as_dict(lueneburg_cfg)
+    if not (cfg.get("enable") and cfg.get("connect_all_to_de_rest")):
+        return
+    if hub not in n.buses.index:
+        logger.warning("connect_all_to_de_rest: hub bus %s missing — skip", hub)
+        return
+
+    lg = n.buses.index[n.buses.index.str.match(LG_NODE_RE + "$")]
+    to_hub = n.lines.bus0.eq(hub) & n.lines.bus1.isin(lg)
+    from_hub = n.lines.bus1.eq(hub) & n.lines.bus0.isin(lg)
+    if not (to_hub | from_hub).any():
+        logger.warning("connect_all_to_de_rest: no DE-rest–N** template line — skip")
+        return
+    connected = set(n.lines.loc[to_hub, "bus1"]) | set(n.lines.loc[from_hub, "bus0"])
+    new_buses = [b for b in lg if b not in connected]
+    if not new_buses:
+        return
+
+    template = n.lines.loc[(to_hub | from_hub)].iloc[0]
+    s_nom = float(cfg.get("s_nom", 200.0))
+    scale = s_nom / template.s_nom if template.s_nom > 0 else 1.0
+    attrs = n.component_attrs["Line"]
+    inputs = attrs.index[attrs.status.str.startswith("Input")].intersection(
+        n.lines.columns
+    )
+    rows = pd.DataFrame(
+        [template[inputs]] * len(new_buses),
+        index=pd.Index([f"{hub}-{b}" for b in new_buses], name="Line"),
+    )
+    rows["bus0"] = hub
+    rows["bus1"] = new_buses
+    rows["s_nom"] = s_nom
+    rows["s_nom_min"] = s_nom
+    rows["s_nom_max"] = s_nom + (template.s_nom_max - template.s_nom)
+    rows["num_parallel"] = template.num_parallel * scale
+    # electrical parameters of `scale` x the template's parallel circuits
+    rows["x"] = template.x / scale
+    rows["r"] = template.r / scale
+    n.add("Line", rows.index, **rows)
+    logger.info(
+        "Connected %s Lüneburg nodes directly to %s (%.0f MW each, extendable=%s): %s",
+        len(new_buses),
+        hub,
+        s_nom,
+        bool(template.s_nom_extendable),
+        new_buses,
+    )
+
+
+def ban_new_fossil_power_lueneburg(n, lueneburg_cfg):
+    """S1: new power capacity in Landkreis Lüneburg (N01AC…N11AC) only renewable.
+
+    Drops extendable fossil-fuelled power plants and CHPs (gas/oil/coal/lignite;
+    CCGT/OCGT) at N** nodes. Existing (brownfield, non-extendable) plants stay.
+    Biomass/biogas/waste and H2-fuelled units are kept. DE-rest is untouched and
+    follows the national pathway (incl. its CO2 budget).
+    """
+    if not _as_dict(lueneburg_cfg).get("renewables_only_new_power"):
+        return
+    carrier = n.links.carrier
+    fossil_power = carrier.isin(["CCGT", "OCGT", "coal", "lignite", "oil"]) | (
+        carrier.str.contains(r"(?:gas|oil|coal|lignite) CHP", regex=True, na=False)
+        & ~carrier.str.contains(r"biogas|biomass|H2", regex=True, na=False)
+    )
+    links = n.links.index[
+        n.links.index.str.match(LG_NODE_RE) & fossil_power & n.links.p_nom_extendable
+    ]
+    logger.info("Lüneburg renewables-only: dropping %s new fossil power links", len(links))
+    _drop_links(n, links)
+
+
+LG_RENEWABLE_GENERATORS = ["onwind", "solar", "solar rooftop", "solar-hsat", "ror"]
+LG_FROZEN_LINK_CARRIERS = [
+    "CCGT",
+    "OCGT",
+    "H2 OCGT",
+    "H2 CCGT",
+    "oil",
+    "coal",
+    "lignite",
+    "nuclear",
+    "H2 Fuel Cell",
+    "H2 Electrolysis",
+    "methanolisation",
+    "Fischer-Tropsch",
+    "Sabatier",
+    "electrobiofuels",
+    "biomass to liquid",
+    "biomass to liquid CC",
+]
+
+
+def freeze_lueneburg_base_year(n, lueneburg_cfg):
+    """Base year: no new power/PtX capacity on N01AC…N11AC (Lüneburg = MaStR + stock).
+
+    WHY: once N** count as DE, national minimum targets (e.g. 67 GW onwind in
+    2025) can be met cheaply in the Landkreis, so the optimiser built ~1.6 GW
+    of "2025" wind there. The base year should reproduce today's Landkreis.
+    Freezes extendable renewable generators, power plants, all CHPs and PtX
+    at N** nodes, plus new heat pumps and resistive heaters (otherwise the
+    optimiser replaced existing oil boilers with ~120 MW of new direct electric
+    heating in "2025"). Boilers stay extendable so heat demand is always met.
+    Call only for the first planning horizon, after the MaStR overwrite.
+    """
+    if not _as_dict(lueneburg_cfg).get("freeze_base_year"):
+        return
+    g = n.generators
+    gens = g.index[
+        g.bus.str.match(LG_NODE_RE)
+        & g.carrier.isin(LG_RENEWABLE_GENERATORS)
+        & g.p_nom_extendable
+    ]
+    n.generators.loc[gens, "p_nom_extendable"] = False
+
+    carrier = n.links.carrier
+    power_or_ptx = carrier.isin(LG_FROZEN_LINK_CARRIERS) | carrier.str.contains(
+        "CHP|resistive heater|heat pump", regex=True, na=False
+    )
+    links = n.links.index[
+        n.links.index.str.match(LG_NODE_RE) & power_or_ptx & n.links.p_nom_extendable
+    ]
+    n.links.loc[links, "p_nom_extendable"] = False
+    logger.info(
+        "Lüneburg base year frozen: %s generators, %s power/CHP/PtX/HP/resistive links non-extendable",
+        len(gens),
+        len(links),
+    )
+
+
+LG_ELECTRICITY_LOADS = [
+    "electricity",
+    "industry electricity",
+    "agriculture electricity",
+    "agriculture machinery electric",
+    "land transport EV",
+]
+
+
+def scale_lueneburg_base_year_electricity(n, lueneburg_cfg):
+    """Base year: scale exogenous LG electricity loads to measured consumption.
+
+    WHY: the 521 GWh overlay only sets the residual "electricity" load; PyPSA
+    then adds its own industry (NUTS3-distributed), agriculture and EV loads on
+    top, giving ~830 GWh exogenous load vs 521 GWh Energiemonitor Verbrauch
+    2025. All exogenous electricity loads on N01–N11 are scaled by one common
+    factor (split between them is kept). Endogenous heat electricity (existing
+    heat pumps / resistive heaters) comes on top of the target and is reported
+    in the validation, optionally reserved via base_year_heat_electricity_gwh.
+    """
+    cfg = _as_dict(lueneburg_cfg)
+    target_gwh = cfg.get("base_year_electricity_gwh")
+    if not target_gwh:
+        return
+    target = (float(target_gwh) - float(cfg.get("base_year_heat_electricity_gwh", 0))) * 1e3
+    w = n.snapshot_weightings.generators
+    loads = n.loads.index[
+        n.loads.bus.str.match(LG_NODE_RE) & n.loads.carrier.isin(LG_ELECTRICITY_LOADS)
+    ]
+    ts = loads.intersection(n.loads_t.p_set.columns)
+    static = loads.difference(ts)
+    current = (n.loads_t.p_set[ts].mul(w, axis=0).sum().sum()) + (
+        n.loads.loc[static, "p_set"].sum() * w.sum()
+    )
+    if current <= 0:
+        return
+    factor = target / current
+    n.loads_t.p_set[ts] *= factor
+    n.loads.loc[static, "p_set"] *= factor
+    logger.info(
+        "Lüneburg base year: scaled %s electricity loads %.0f → %.0f GWh (factor %.2f)",
+        len(loads),
+        current / 1e3,
+        target / 1e3,
+        factor,
+    )
+
+
+def export_lueneburg_waste_to_de_rest(n, lueneburg_cfg, hub: str = "DE-restAC"):
+    """Ship Lüneburg's non-sequestered HVC (plastic waste) to DE-rest incinerators.
+
+    WHY: every node has its own waste bus that must be emptied by a waste CHP or
+    "HVC to air". There is no incinerator in the Landkreis, and once N** count
+    as DE the national "HVC to air <= 0" limit applies, so without transport the
+    model must build waste CHPs in Lüneburg (or is infeasible in the frozen base
+    year). Free, unconstrained transport mirrors real waste logistics.
+    """
+    if not _as_dict(lueneburg_cfg).get("export_waste_to_de_rest"):
+        return
+    carrier = "HVC transport"
+    target = f"{hub} non-sequestered HVC"
+    if target not in n.buses.index:
+        logger.warning("export_waste_to_de_rest: %s missing — skip", target)
+        return
+    src = n.buses.index[
+        n.buses.index.str.match(LG_NODE_RE + " non-sequestered HVC$")
+    ]
+    names = src.str.replace(" non-sequestered HVC", f" {carrier}")
+    new = ~names.isin(n.links.index)
+    if not new.any():
+        return
+    if carrier not in n.carriers.index:
+        n.add("Carrier", carrier)
+    n.add(
+        "Link",
+        names[new],
+        bus0=src[new],
+        bus1=target,
+        carrier=carrier,
+        p_nom_extendable=True,
+        capital_cost=0.0,
+        efficiency=1.0,
+    )
+    logger.info("Lüneburg waste: %s HVC transport links → %s", int(new.sum()), target)
 
 
 def coal_generation_ban(n, coal_ban, year):
@@ -104,7 +488,7 @@ def coal_generation_ban(n, coal_ban, year):
                 f"For year {year} in {ct} implementing coal and lignite ban from {ban_year}"
             )
             links = n.links.index[
-                (n.links.index.str[:2] == ct)
+                (name_country(n.links.index) == ct)
                 & n.links.carrier.isin(["coal", "lignite"])
             ]
             logger.info(f"Dropping {links}")
@@ -120,7 +504,7 @@ def nuclear_generation_ban(n, nuclear_ban, year):
                 f"For year {year} in {ct} implementing nuclear ban from {ban_year}"
             )
             links = n.links.index[
-                (n.links.index.str[:2] == ct) & n.links.carrier.isin(["nuclear"])
+                (name_country(n.links.index) == ct) & n.links.carrier.isin(["nuclear"])
             ]
             logger.info(f"Dropping {links}")
             n.links.drop(links, inplace=True)
@@ -157,7 +541,7 @@ def scale_DE_heat_load(n, DE_factor, EU_factor):
     ]
     heat_scale_factor = (1 - DE_factor) / (1 - EU_factor)
     idx = n.loads.index[
-        n.loads["bus"].str.contains("DE")
+        (name_country(n.loads["bus"]) == "DE")
         & n.loads["carrier"].isin(building_heat_carriers)
     ]
     idx = n.loads_t.p_set.columns.intersection(idx)
@@ -346,8 +730,8 @@ def add_wasserstoff_kernnetz(
         # assume that only pipelines from kernnetz are built (within Germany):
         # make pipes within Germany not extendable and all others extendable (but only from current year)
         to_fix = (
-            n.links.bus0.str.startswith("DE")
-            & n.links.bus1.str.startswith("DE")
+            (name_country(n.links.bus0) == "DE")
+            & (name_country(n.links.bus1) == "DE")
             & n.links.carrier.isin(["H2 pipeline", "H2 pipeline retrofitted"])
         )
         n.links.loc[to_fix, "p_nom_extendable"] = False
@@ -426,18 +810,18 @@ def unravel_carbonaceous_fuels(
         "Fischer-Tropsch",
     ]
     renewable_oil_DE = n.links[
-        (n.links.carrier.isin(renewable_oil_carrier)) & (n.links.index.str[:2] == "DE")
+        (n.links.carrier.isin(renewable_oil_carrier)) & (name_country(n.links.index) == "DE")
     ]
     n.links.loc[renewable_oil_DE.index, "bus1"] = "DE renewable oil"
 
     renewable_oil_EU = n.links[
-        (n.links.carrier.isin(renewable_oil_carrier)) & (n.links.index.str[:2] != "DE")
+        (n.links.carrier.isin(renewable_oil_carrier)) & (name_country(n.links.index) != "DE")
     ]
     n.links.loc[renewable_oil_EU.index, "bus1"] = "EU renewable oil"
 
     # change links from EU oil to DE oil
     german_oil_consumers = n.links[
-        (n.links.bus0 == "EU oil") & (n.links.index.str.contains("DE"))
+        (n.links.bus0 == "EU oil") & ((name_country(n.links.index) == "DE"))
     ].index
 
     n.links.loc[german_oil_consumers, "bus0"] = "DE oil"
@@ -526,11 +910,11 @@ def unravel_carbonaceous_fuels(
 
     # change links from EU meoh to DE meoh
     DE_meoh_out = n.links[
-        (n.links.bus0 == "EU methanol") & (n.links.index.str[:2] == "DE")
+        (n.links.bus0 == "EU methanol") & (name_country(n.links.index) == "DE")
     ].index
     n.links.loc[DE_meoh_out, "bus0"] = "DE methanol"
     DE_meoh_in = n.links[
-        (n.links.bus1 == "EU methanol") & (n.links.index.str[:2] == "DE")
+        (n.links.bus1 == "EU methanol") & (name_country(n.links.index) == "DE")
     ].index
     n.links.loc[DE_meoh_in, "bus1"] = "DE methanol"
 
@@ -579,7 +963,7 @@ def unravel_carbonaceous_fuels(
             pd.read_csv(inputs.industrial_demand, index_col=0) * 1e6
         )  # TWh/a to MWh/a
         DE_meoh = (
-            industrial_demand["methanol"].filter(like="DE").sum() / 8760
+            industrial_demand["methanol"].pipe(lambda d: d[name_country(d.index) == "DE"]).sum() / 8760
         )  # MWh/a to MW hourly resolution
         n.add(
             "Load",
@@ -611,13 +995,13 @@ def unravel_carbonaceous_fuels(
         # TWh/a
         domestic_navigation = (
             pop_weighted_energy_totals["total domestic navigation"]
-            .filter(like="DE")
+            .pipe(lambda d: d[name_country(d.index) == "DE"])
             .sum()
         )
         # TWh/a
         international_navigation = (
             (pd.read_csv(inputs.shipping_demand, index_col=0).squeeze(axis=1))
-            .filter(like="DE")
+            .pipe(lambda d: d[name_country(d.index) == "DE"])
             .sum()
         )
         all_navigation = domestic_navigation + international_navigation
@@ -738,17 +1122,17 @@ def unravel_gasbus(n, costs, industry, efuel_export_ban):
     ### renewable gas
     renewable_gas_carrier = ["biogas to gas", "biogas to gas CC", "Sabatier"]
     renewable_gas_DE = n.links[
-        (n.links.carrier.isin(renewable_gas_carrier)) & (n.links.index.str[:2] == "DE")
+        (n.links.carrier.isin(renewable_gas_carrier)) & (name_country(n.links.index) == "DE")
     ]
     n.links.loc[renewable_gas_DE.index, "bus1"] = "DE renewable gas"
 
     renewable_gas_EU = n.links[
-        (n.links.carrier.isin(renewable_gas_carrier)) & (n.links.index.str[:2] != "DE")
+        (n.links.carrier.isin(renewable_gas_carrier)) & (name_country(n.links.index) != "DE")
     ]
     n.links.loc[renewable_gas_EU.index, "bus1"] = "EU renewable gas"
 
     ### change buses of German gas links
-    fossil_links = n.links[(n.links.bus0 == "EU gas") & (n.links.index.str[:2] == "DE")]
+    fossil_links = n.links[(n.links.bus0 == "EU gas") & (name_country(n.links.index) == "DE")]
     n.links.loc[fossil_links.index, "bus0"] = "DE gas"
 
     ### add import/export links
@@ -910,7 +1294,7 @@ def modify_mobility_demand(
     }
     for carrier, fuel in carrier_fuel_map.items():
         loads_i = n.loads[
-            (n.loads.carrier == carrier) & n.loads.index.str.startswith("DE")
+            (n.loads.carrier == carrier) & (name_country(n.loads.index) == "DE")
         ]
         old_demand = (
             n.loads_t.p_set.loc[:, loads_i.index]
@@ -927,7 +1311,7 @@ def modify_mobility_demand(
     # adjust BEV charger and V2G capacities
 
     BEV_chargers = n.links[
-        (n.links.carrier == "BEV charger") & (n.links.bus0.str.startswith("DE"))
+        (n.links.carrier == "BEV charger") & ((name_country(n.links.bus0) == "DE"))
     ]
 
     scale_factor = number_of_EVs * bev_charge_rate / BEV_chargers.p_nom.sum()
@@ -936,13 +1320,13 @@ def modify_mobility_demand(
     )
     n.links.loc[BEV_chargers.index, "p_nom"] *= scale_factor
 
-    V2G = n.links[(n.links.carrier == "V2G") & (n.links.bus0.str.startswith("DE"))]
+    V2G = n.links[(n.links.carrier == "V2G") & ((name_country(n.links.bus0) == "DE"))]
 
     if not V2G.empty:
         n.links.loc[V2G.index, "p_nom"] *= scale_factor * bev_dsm_availability
 
     dsm = n.stores[
-        (n.stores.carrier == "EV battery") & (n.stores.bus.str.startswith("DE"))
+        (n.stores.carrier == "EV battery") & ((name_country(n.stores.bus) == "DE"))
     ]
 
     if not dsm.empty:
@@ -1007,9 +1391,9 @@ def modify_industry_demand(
         "industry electricity",
         "coal for industry",
     ]
-    industry_loads = n.loads.query(
-        f"carrier in {_industry_loads} and bus.str.startswith('DE')"
-    )
+    industry_loads = n.loads[
+        n.loads.carrier.isin(_industry_loads) & (name_country(n.loads.bus) == "DE")
+    ]
 
     if scale_non_energy:
         new_demand_without_non_energy = new_demand.sum()
@@ -1032,9 +1416,9 @@ def modify_industry_demand(
         "solid biomass for industry",
         "low-temperature heat for industry",
     ]:
-        loads_i = n.loads.query(
-            f"carrier == '{carrier}' and bus.str.startswith('DE')"
-        ).index
+        loads_i = n.loads.index[
+            (n.loads.carrier == carrier) & (name_country(n.loads.bus) == "DE")
+        ]
         logger.info(
             f"Total load of {carrier} in DE before scaling: {n.loads.loc[loads_i, 'p_set'].sum() * 8760:.2f} MWh/a"
         )
@@ -1058,9 +1442,10 @@ def modify_industry_demand(
         fossil_energy_corrected + non_energy_corrected[fossil_totals.index]
     )
     for carrier in fossil_totals.index:
-        loads_i = fossil_loads.query(
-            f"carrier == '{carrier}' and bus.str.startswith('DE')"
-        ).index
+        loads_i = fossil_loads.index[
+            (fossil_loads.carrier == carrier)
+            & (name_country(fossil_loads.bus) == "DE")
+        ]
         n.loads.loc[loads_i, "p_set"] *= (
             fossil_totals_corrected[carrier] / fossil_totals[carrier]
         )
@@ -1086,7 +1471,7 @@ def add_hydrogen_turbines(n, H2_plants):
     for carrier in gas_carrier:
         gas_plants = n.links[
             (n.links.carrier == carrier)
-            & (n.links.index.str.startswith(scope))
+            & ((name_country(n.links.index) == scope) if scope else True)
             & (n.links.p_nom_extendable)
         ].index
         if gas_plants.empty:
@@ -1103,7 +1488,7 @@ def add_hydrogen_turbines(n, H2_plants):
     # special handling of CHPs
     gas_plants = n.links[
         (n.links.carrier == "urban central gas CHP")
-        & (n.links.index.str.startswith(scope))
+        & ((name_country(n.links.index) == scope) if scope else True)
         & (n.links.p_nom_extendable)
     ].index
     h2_plants = n.links.loc[gas_plants].copy()
@@ -1129,7 +1514,7 @@ def force_retrofit(n, params):
     to_drop = n.links[
         (n.links.carrier.isin(gas_carrier))
         & (n.links.p_nom_extendable)
-        & (n.links.index.str[:2] == "DE")
+        & (name_country(n.links.index) == "DE")
     ].index
     n.links.drop(to_drop, inplace=True)
 
@@ -1137,7 +1522,7 @@ def force_retrofit(n, params):
     for carrier in ["OCGT", "CCGT"]:
         gas_plants = n.links[
             (n.links.carrier == carrier)
-            & (n.links.index.str[:2] == "DE")
+            & (name_country(n.links.index) == "DE")
             & (n.links.build_year >= params["start"])
         ].index
         if gas_plants.empty:
@@ -1161,7 +1546,7 @@ def force_retrofit(n, params):
     # special handling of CHPs
     gas_plants = n.links[
         (n.links.carrier == "urban central gas CHP")
-        & (n.links.index.str[:2] == "DE")
+        & (name_country(n.links.index) == "DE")
         & (n.links.build_year >= params["start"])
     ].index
     if gas_plants.empty:
@@ -1284,7 +1669,7 @@ def force_connection_nep_offshore(
     # Instead of taking over capacities from add_existing, set everything to 0 and use only the NEP projects.
     current_offwind = n.generators.index[
         n.generators.carrier.str.contains("offwind")
-        & n.generators.index.str.startswith("DE")
+        & (name_country(n.generators.index) == "DE")
         & (n.generators.build_year == current_year)
     ]
 
@@ -1459,7 +1844,7 @@ def limit_cross_border_flows_ac(n, s_max_pu):
     logger.info(
         f"Limiting AC cross-border flows between all countries to {s_max_pu} of maximum capacity."
     )
-    cross_border_lines = n.lines.index[n.lines.bus0.str[:2] != n.lines.bus1.str[:2]]
+    cross_border_lines = n.lines.index[name_country(n.lines.bus0) != name_country(n.lines.bus1)]
     n.lines.loc[cross_border_lines, "s_max_pu"] = s_max_pu
 
 
@@ -1477,15 +1862,16 @@ def scale_industry_elec_to_2025(n, industrial_energy_demand_2025):
 
     model_demand_2025 = (
         (pd.read_csv(industrial_energy_demand_2025, index_col=0) * 1e6)
-        .filter(like="DE", axis=0)
+        .pipe(lambda d: d[name_country(d.index) == "DE"])
         .sum()["electricity"]
     )
 
     delta = ageb - model_demand_2025
 
-    loads = n.loads.query(
-        "bus.str.startswith('DE') and carrier=='industry electricity'"
-    )
+    loads = n.loads[
+        (name_country(n.loads.bus) == "DE")
+        & (n.loads.carrier == "industry electricity")
+    ]
 
     logger.info(
         "Industry electricity demand in Germany before scaling: "
@@ -1541,6 +1927,9 @@ def main(n, inputs, params, costs, current_horizon: int) -> pypsa.Network:
         )
 
     new_boiler_ban(n, params.fossil_boiler_ban, current_horizon)
+    absolute_fossil_heat_ban(
+        n, getattr(params, "absolute_fossil_heat_ban", {}) or {}, current_horizon
+    )
     fix_new_boiler_profiles(n)
     remove_old_boiler_profiles(n)
     coal_generation_ban(n, params.coal_ban, current_horizon)
@@ -1631,6 +2020,48 @@ def main(n, inputs, params, costs, current_horizon: int) -> pypsa.Network:
         DE_factor=params.space_heat_DE_factor[current_horizon],
         EU_factor=params.space_heat_EU_factor[current_horizon],
     )
+
+    # WHY Step 7: myopic IRENA brownfield ≠ local MaStR; overwrite N01–N11, adjust DE-rest.
+    lueneburg_cfg = getattr(params, "lueneburg", {}) or {}
+    _cap_path = Path(__file__).parent / "modify_lueneburg_existing_capacities.py"
+    _spec = importlib.util.spec_from_file_location(
+        "modify_lueneburg_existing_capacities", _cap_path
+    )
+    _mod = importlib.util.module_from_spec(_spec)
+    assert _spec.loader is not None
+    _spec.loader.exec_module(_mod)
+    is_base_year = current_horizon == params.horizons[0]
+    if is_base_year:
+        # Only the base year: later horizons inherit MaStR stock + earlier
+        # investments via brownfield; overwriting again would delete them.
+        _mod.apply_if_enabled(n, lueneburg_cfg)
+        freeze_lueneburg_base_year(n, lueneburg_cfg)
+        scale_lueneburg_base_year_electricity(n, lueneburg_cfg)
+    # every horizon: Lüneburg plastic waste may go to DE-rest incinerators
+    export_lueneburg_waste_to_de_rest(n, lueneburg_cfg)
+    # S1: Abwasserwärme Fernwärme Hansestadt (10.4 MW_th heat pump from 2030)
+    add_lueneburg_wastewater_waste_heat(
+        n, lueneburg_cfg, current_horizon, inputs, params
+    )
+    # S1: new power capacity in the Landkreis only renewable (after H2 turbines)
+    ban_new_fossil_power_lueneburg(n, lueneburg_cfg)
+
+    # WHY: MaStR existing can sit slightly above atlite p_nom_max (e.g. N09
+    # onwind) → HiGHS infeasible. Raise max to min. Also fill NaN boiler
+    # profiles on empty rural/urban nodes (no heat demand → all-NaN p_min_pu).
+    bad_g = n.generators.p_nom_max < n.generators.p_nom_min
+    if bad_g.any():
+        logger.warning(
+            "Raising p_nom_max to p_nom_min for %s generators: %s",
+            int(bad_g.sum()),
+            list(n.generators.index[bad_g]),
+        )
+        n.generators.loc[bad_g, "p_nom_max"] = n.generators.loc[bad_g, "p_nom_min"]
+    if hasattr(n, "links_t"):
+        if "p_min_pu" in n.links_t:
+            n.links_t.p_min_pu = n.links_t.p_min_pu.fillna(0.0)
+        if "p_max_pu" in n.links_t:
+            n.links_t.p_max_pu = n.links_t.p_max_pu.fillna(1.0)
 
     if current_horizon in params.limit_cross_border_flows_ac:
         limit_cross_border_flows_ac(

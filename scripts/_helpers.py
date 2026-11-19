@@ -610,6 +610,33 @@ def mock_snakemake(
     return snakemake
 
 
+def bus_country(name: str) -> str:
+    """ISO2 country from a bus/region name.
+
+    WHY: stock code uses ``name[:2]``, but LG synthetics ``N01AC``–``N11AC``
+    would become ``N0``/``N1``. Map those to DE. XK → RS (PyPSA-Eur convention).
+    """
+    name = str(name)
+    if re.match(r"^N\d{2}", name):
+        return "DE"
+    ct = name[:2]
+    return "RS" if ct == "XK" else ct
+
+
+def name_country(names) -> np.ndarray:
+    """Vectorised country code (first two letters) for component/bus names.
+
+    WHY: pypsa-de selects German assets via ``name.str[:2] == "DE"``. That
+    silently treats the Lüneburg synthetic nodes ``N01AC``–``N11AC`` as
+    non-German, so they escaped the national CO2 budget, capacity/production
+    limits and import limits (the optimiser then sited GW-scale CCGT and PtX
+    there). Names starting with ``N\\d{2}`` map to DE, consistent with
+    :func:`bus_country`.
+    """
+    s = pd.Index(names).astype(str)
+    return np.where(s.str.match(r"^N\d{2}"), "DE", s.str[:2])
+
+
 def generate_periodic_profiles(dt_index, nodes, weekly_profile, localize=None):
     """
     Give a 24*7 long list of weekly hourly profiles, generate this for each
@@ -621,7 +648,7 @@ def generate_periodic_profiles(dt_index, nodes, weekly_profile, localize=None):
     week_df = pd.DataFrame(index=dt_index, columns=nodes)
 
     for node in nodes:
-        ct = node[:2] if node[:2] != "XK" else "RS"
+        ct = bus_country(node)
         timezone = pytz.timezone(pytz.country_timezones[ct][0])
         tz_dt_index = dt_index.tz_convert(timezone)
         week_df[node] = [24 * dt.weekday() + dt.hour for dt in tz_dt_index]

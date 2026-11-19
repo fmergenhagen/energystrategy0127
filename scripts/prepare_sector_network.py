@@ -25,6 +25,7 @@ from networkx.algorithms.connectivity.edge_augmentation import k_edge_augmentati
 from pypsa.geo import haversine_pts
 
 from scripts._helpers import (
+    bus_country,
     get,
     get_temporal_resolution,
 )
@@ -312,11 +313,17 @@ def create_network_topology(
     lk_attrs = ["bus0", "bus1", "length", "underwater_fraction"]
     lk_attrs = n.links.columns.intersection(lk_attrs)
 
+    # WHY: LG clustered nets may lack underwater_fraction on links.
+    uf = (
+        n.links["underwater_fraction"]
+        if "underwater_fraction" in n.links.columns
+        else pd.Series(0.0, index=n.links.index)
+    )
     candidates = pd.concat(
         [
             n.lines[ln_attrs],
             n.links.loc[
-                (n.links.carrier.isin(carriers)) & (n.links.underwater_fraction > 0.1),
+                (n.links.carrier.isin(carriers)) & (uf > 0.1),
                 lk_attrs,
             ],
         ]
@@ -2851,9 +2858,8 @@ def build_heat_demand(
         name = f"{sector} {use}"
 
         # efficiency for final energy to thermal energy service
-        eff = pop_weighted_energy_totals.index.str[:2].map(
-            heating_efficiencies[f"total {sector} {use} efficiency"]
-        )
+        ct = pop_weighted_energy_totals.index.to_series().map(bus_country)
+        eff = ct.map(heating_efficiencies[f"total {sector} {use} efficiency"])
 
         heat_demand[name] = (
             heat_demand_shape[name] / heat_demand_shape[name].sum()
@@ -3384,6 +3390,23 @@ def add_heat(
                 else costs.loc[[costs_name_heat_pump], ["efficiency"]]
             )
 
+            if (
+                not options["district_heating"]["ptes"]["supplemental_heating"][
+                    "enable"
+                ]
+                and options["district_heating"]["ptes"]["supplemental_heating"][
+                    "booster_heat_pump"
+                ]
+            ):
+                raise ValueError(
+                    "'booster_heat_pump' is true, but 'enable' is false in 'supplemental_heating'."
+                )
+
+            # Exactly one heat pump link per node and heat source: limited sources
+            # get an explicit source bus (bus2), PTES boosters charge the water
+            # pits, all others are plain electricity -> heat. Previously the
+            # generic branch also ran for limited sources, re-adding the same
+            # link names (skipped by PyPSA with an "already defined" warning).
             if heat_source in params.limited_heat_sources:
                 # get potential
                 p_max_source = pd.read_csv(
@@ -3496,19 +3519,7 @@ def add_heat(
                         p_nom_extendable=True,
                     )
 
-            if (
-                not options["district_heating"]["ptes"]["supplemental_heating"][
-                    "enable"
-                ]
-                and options["district_heating"]["ptes"]["supplemental_heating"][
-                    "booster_heat_pump"
-                ]
-            ):
-                raise ValueError(
-                    "'booster_heat_pump' is true, but 'enable' is false in 'supplemental_heating'."
-                )
-
-            if (
+            elif (
                 heat_source in params.temperature_limited_stores
                 and options["district_heating"]["ptes"]["supplemental_heating"][
                     "enable"
@@ -4284,8 +4295,12 @@ def add_biomass(
         )
 
         # costs
-        bus0_costs = biomass_transport.bus0.apply(lambda x: transport_costs[x[:2]])
-        bus1_costs = biomass_transport.bus1.apply(lambda x: transport_costs[x[:2]])
+        bus0_costs = biomass_transport.bus0.apply(
+            lambda x: transport_costs[bus_country(x)]
+        )
+        bus1_costs = biomass_transport.bus1.apply(
+            lambda x: transport_costs[bus_country(x)]
+        )
         biomass_transport["costs"] = pd.concat([bus0_costs, bus1_costs], axis=1).mean(
             axis=1
         )
@@ -4322,7 +4337,7 @@ def add_biomass(
         transport_costs = pd.read_csv(biomass_transport_costs_file, index_col=0)
         transport_costs = transport_costs.squeeze()
         bus_transport_costs = spatial.biomass.nodes.to_series().apply(
-            lambda x: transport_costs[x[:2]]
+            lambda x: transport_costs[bus_country(x)]
         )
         average_distance = 200  # km #TODO: validate this assumption
 
@@ -5231,7 +5246,8 @@ def add_industry(
         # TODO map onto n.bus.country
 
         loads_i = n.loads.index[
-            (n.loads.index.str[:2] == ct) & (n.loads.carrier == "electricity")
+            (n.loads.index.map(bus_country) == ct)
+            & (n.loads.carrier == "electricity")
         ]
         if n.loads_t.p_set[loads_i].empty:
             continue

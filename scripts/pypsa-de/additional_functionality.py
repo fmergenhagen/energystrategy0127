@@ -4,6 +4,7 @@ import sys
 import pandas as pd
 from xarray import DataArray
 
+from scripts._helpers import name_country
 from scripts.prepare_sector_network import determine_emission_sectors
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ def add_capacity_limits(n, investment_year, limits_capacity, sense="maximum"):
                 )
 
                 valid_components = (
-                    (c.static.index.str[:2] == ct)
+                    (name_country(c.static.index) == ct)
                     & (c.static.carrier.str[: len(carrier)] == carrier)
                     & ~c.static.carrier.str.contains("thermal")
                 )  # exclude solar thermal
@@ -122,7 +123,7 @@ def add_production_limits(n, investment_year, limits_production, sense="maximum"
                 f"Adding constraint on {'Link'} {carrier} production in {ct} to be {sense} {limit} MWh/a"
             )
 
-            valid_components = (n.links.index.str[:2] == ct) & (
+            valid_components = (name_country(n.links.index) == ct) & (
                 n.links.carrier == carrier
             )
             efficiency = n.links.loc[valid_components, "efficiency"]
@@ -221,18 +222,23 @@ def add_power_limits(n, investment_year, limits_power_max):
         )
         # identify interconnectors
 
-        incoming_lines = n.lines.query(
-            f"not bus0.str.startswith('{ct}') and bus1.str.startswith('{ct}') and active"
-        )
-        outgoing_lines = n.lines.query(
-            f"bus0.str.startswith('{ct}') and not bus1.str.startswith('{ct}') and active"
-        )
-        incoming_links = n.links.query(
-            f"not bus0.str.startswith('{ct}') and bus1.str.startswith('{ct}') and carrier == 'DC' and active"
-        )
-        outgoing_links = n.links.query(
-            f"bus0.str.startswith('{ct}') and not bus1.str.startswith('{ct}') and carrier == 'DC' and active"
-        )
+        line0 = name_country(n.lines.bus0) == ct
+        line1 = name_country(n.lines.bus1) == ct
+        link0 = name_country(n.links.bus0) == ct
+        link1 = name_country(n.links.bus1) == ct
+        is_dc = (n.links.carrier == "DC") & n.links.active
+        incoming_lines = n.lines[~line0 & line1 & n.lines.active]
+        outgoing_lines = n.lines[line0 & ~line1 & n.lines.active]
+        incoming_links = n.links[~link0 & link1 & is_dc]
+        outgoing_links = n.links[link0 & ~link1 & is_dc]
+
+        if not any(
+            len(df) for df in (incoming_lines, outgoing_lines, incoming_links, outgoing_links)
+        ):
+            # e.g. countries: [DE] only (Lüneburg setup): no interconnectors left
+            # once N** nodes count as DE -> constraint would be constant.
+            logger.info(f"No electricity interconnectors for {ct}; skipping power limit")
+            continue
 
         # define auxiliary variables for positive and negative parts of line and link flows
 
@@ -284,14 +290,18 @@ def h2_import_limits(n, investment_year, limits_volume_max):
         ]
         incoming = n.links.index[
             (n.links.carrier.isin(pipeline_carrier))
-            & (n.links.bus0.str[:2] != ct)
-            & (n.links.bus1.str[:2] == ct)
+            & (name_country(n.links.bus0) != ct)
+            & (name_country(n.links.bus1) == ct)
         ]
         outgoing = n.links.index[
             (n.links.carrier.isin(pipeline_carrier))
-            & (n.links.bus0.str[:2] == ct)
-            & (n.links.bus1.str[:2] != ct)
+            & (name_country(n.links.bus0) == ct)
+            & (name_country(n.links.bus1) != ct)
         ]
+
+        if incoming.empty and outgoing.empty:
+            logger.info(f"No H2 pipelines crossing the {ct} border; skipping H2 import limit")
+            continue
 
         incoming_p = (
             n.model["Link-p"].loc[:, incoming] * n.snapshot_weightings.generators
@@ -354,29 +364,37 @@ def electricity_import_limits(n, investment_year, limits_volume_max):
 
         incoming_line = n.lines.index[
             (n.lines.carrier == "AC")
-            & (n.lines.bus0.str[:2] != ct)
-            & (n.lines.bus1.str[:2] == ct)
+            & (name_country(n.lines.bus0) != ct)
+            & (name_country(n.lines.bus1) == ct)
             & n.lines.active
         ]
         outgoing_line = n.lines.index[
             (n.lines.carrier == "AC")
-            & (n.lines.bus0.str[:2] == ct)
-            & (n.lines.bus1.str[:2] != ct)
+            & (name_country(n.lines.bus0) == ct)
+            & (name_country(n.lines.bus1) != ct)
             & n.lines.active
         ]
 
         incoming_link = n.links.index[
             (n.links.carrier == "DC")
-            & (n.links.bus0.str[:2] != ct)
-            & (n.links.bus1.str[:2] == ct)
+            & (name_country(n.links.bus0) != ct)
+            & (name_country(n.links.bus1) == ct)
             & n.links.active
         ]
         outgoing_link = n.links.index[
             (n.links.carrier == "DC")
-            & (n.links.bus0.str[:2] == ct)
-            & (n.links.bus1.str[:2] != ct)
+            & (name_country(n.links.bus0) == ct)
+            & (name_country(n.links.bus1) != ct)
             & n.links.active
         ]
+
+        if not any(
+            len(i) for i in (incoming_line, outgoing_line, incoming_link, outgoing_link)
+        ):
+            logger.info(
+                f"No electricity interconnectors for {ct}; skipping import volume limit"
+            )
+            continue
 
         incoming_line_p = (
             n.model["Line-s"].loc[:, incoming_line] * n.snapshot_weightings.generators
@@ -456,7 +474,7 @@ def add_national_co2_budgets(n, snakemake, national_co2_budgets, investment_year
 
         for port in [col[3:] for col in n.links if col.startswith("bus")]:
             links = n.links.index[
-                (n.links.index.str[:2] == ct)
+                (name_country(n.links.index) == ct)
                 & (n.links[f"bus{port}"] == "co2 atmosphere")
                 & ~n.links.carrier.str.contains(
                     "shipping|aviation"
@@ -493,7 +511,7 @@ def add_national_co2_budgets(n, snakemake, national_co2_budgets, investment_year
             domestic_aviation + international_aviation
         )
         aviation_links = n.links[
-            (n.links.index.str[:2] == ct) & (n.links.carrier == "kerosene for aviation")
+            (name_country(n.links.index) == ct) & (n.links.carrier == "kerosene for aviation")
         ]
         lhs.append(
             (
@@ -518,7 +536,7 @@ def add_national_co2_budgets(n, snakemake, national_co2_budgets, investment_year
             domestic_navigation + international_navigation
         )
         shipping_links = n.links[
-            (n.links.index.str[:2] == ct) & (n.links.carrier == "shipping oil")
+            (name_country(n.links.index) == ct) & (n.links.carrier == "shipping oil")
         ]
         lhs.append(
             (
@@ -531,7 +549,7 @@ def add_national_co2_budgets(n, snakemake, national_co2_budgets, investment_year
 
         # Shipping methanol
         shipping_meoh_links = n.links[
-            (n.links.index.str[:2] == ct) & (n.links.carrier == "shipping methanol")
+            (name_country(n.links.index) == ct) & (n.links.carrier == "shipping methanol")
         ]
         if not shipping_meoh_links.empty:  # no shipping methanol in 2025
             lhs.append(
@@ -807,7 +825,7 @@ def adapt_nuclear_output(n):
     limit = 61e6
 
     nuclear_de_index = n.links.index[
-        (n.links.carrier == "nuclear") & (n.links.index.str[:2] == "DE")
+        (n.links.carrier == "nuclear") & (name_country(n.links.index) == "DE")
     ]
 
     nuclear_gen = (
@@ -883,7 +901,7 @@ def add_decentral_heat_budgets(n, decentral_heat_budgets, investment_year):
             logger.info(
                 f"Limiting decentral {asset_type} electricity consumption in country {ct} to {limit} MWh.",
             )
-            assets = assets[assets.str.startswith(ct)]
+            assets = assets[name_country(assets) == ct]
 
             lhs = []
 

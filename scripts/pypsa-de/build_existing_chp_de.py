@@ -302,10 +302,20 @@ if __name__ == "__main__":
     CHP_de = calculate_efficiency(CHP_de)
 
     logger.info("Mapping CHP plants to regions")
-    regions = gpd.read_file(snakemake.input.regions).set_index("name")
+    # WHY reset: clean_data can leave duplicate index labels.
+    # WHY prefer N**: DE-restAC still overlaps LG polygons, so
+    # sjoin_nearest can return multiple hits; keep LG over DE-rest.
+    CHP_de = CHP_de.reset_index(drop=True)
+    regions = gpd.read_file(snakemake.input.regions)
     geometry = gpd.points_from_xy(CHP_de["lon"], CHP_de["lat"])
     gdf = gpd.GeoDataFrame(geometry=geometry, crs=4326)
-    CHP_de["bus"] = gpd.sjoin_nearest(gdf, regions, how="left")["name"]
+    joined = gpd.sjoin_nearest(gdf, regions, how="left")
+    if joined.index.has_duplicates:
+        joined = joined.assign(
+            _lg_pref=joined["name"].astype(str).str.match(r"^N\d{2}").astype(int)
+        ).sort_values("_lg_pref", ascending=False)
+        joined = joined[~joined.index.duplicated(keep="first")]
+    CHP_de["bus"] = joined.reindex(CHP_de.index)["name"].to_numpy()
 
     if snakemake.params.district_heating_subnodes["enable"]:
         subnodes = gpd.read_file(

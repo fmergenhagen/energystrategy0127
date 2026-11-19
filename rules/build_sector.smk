@@ -1446,7 +1446,7 @@ rule build_existing_heating_distribution:
 rule time_aggregation:
     input:
         network=resources("networks/clustered.nc"),
-        electricity_demand=resources("electricity_demand.nc"),
+        electricity_demand=input_electricity_demand,  # Lüneburg: modified.nc when lueneburg.enable
         profiles=lambda w: [
             resources(f"profile_{tech}.nc")
             for tech in config_provider("electricity", "renewable_carriers")(w)
@@ -1458,7 +1458,7 @@ rule time_aggregation:
             else []
         ),
         hourly_heat_demand_total=lambda w: (
-            resources("hourly_heat_demand_total.nc")
+            input_hourly_heat_demand(w)
             if config_provider("sector", "enabled")(w)
             and config_provider("sector", "heating")(w)
             else []

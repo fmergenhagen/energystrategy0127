@@ -40,7 +40,11 @@ if __name__ == "__main__":
 
     pop = pd.DataFrame(pop, index=clustered_regions.index)
 
+    # WHY LG N**AC → DE: index[:2] would yield "N0"/"N1", breaking
+    # country-level energy/heat allocation for synthetic LG buses.
     pop["ct"] = pop.index.str[:2]
+    lg = pop.index.astype(str).str.match(r"^N\d{2}")
+    pop.loc[lg, "ct"] = "DE"
     country_population = pop.total.groupby(pop.ct).sum()
     pop["fraction"] = pop.total / pop.ct.map(country_population)
 

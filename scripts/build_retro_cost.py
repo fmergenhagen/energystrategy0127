@@ -240,7 +240,11 @@ def prepare_building_stock_data():
 
     # for still missing countries calculate floor area by population size
     pop_layout = pd.read_csv(snakemake.input.clustered_pop_layout, index_col=0)
-    pop_layout["ct"] = pop_layout.index.str[:2]
+    # WHY: keep DE for LG N**AC (do not use index[:2] → N0/N1).
+    if "ct" not in pop_layout.columns:
+        pop_layout["ct"] = pop_layout.index.str[:2]
+        lg = pop_layout.index.astype(str).str.match(r"^N\d{2}")
+        pop_layout.loc[lg, "ct"] = "DE"
     ct_total = pop_layout.total.groupby(pop_layout["ct"]).sum()
 
     area_per_pop = (
