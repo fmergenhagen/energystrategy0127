@@ -335,6 +335,58 @@ def ban_new_fossil_power_lueneburg(n, lueneburg_cfg):
     _drop_links(n, links)
 
 
+LG_SYSTEM_STORE_CARRIERS = ["battery", "H2 Store"]
+LG_SYSTEM_LINK_CARRIERS = [
+    "battery charger",
+    "H2 Electrolysis",
+    "H2 Fuel Cell",
+    "H2 OCGT",
+    "H2 CCGT",
+    "methanolisation",
+    "Fischer-Tropsch",
+    "Sabatier",
+    "electrobiofuels",
+]
+
+
+def surcharge_lueneburg_system_assets(n, lueneburg_cfg):
+    """Tie-breaker: small capex surcharge on system-scale storage/PtX at N01–N11.
+
+    WHY: Lüneburg and DE-rest are joined by rarely congested lines, so prices
+    are equal (S1_4h 2040: mean |ΔP| N01 vs DE-rest = 0 EUR/MWh) and a grid
+    battery, H2 store or electrolyser in the Landkreis is worth exactly as much
+    as one in DE-rest at identical cost. That LP is degenerate; Gurobi barrier
+    without crossover then spreads such assets across equal-cost nodes (4h run:
+    52 GWh of grid batteries in LG). A surcharge of a few per mille to 1 %
+    makes the model site them in the Landkreis only when there is a local reason
+    (congested connection, local surplus). Home batteries, heat storage, heat
+    pumps and the wastewater heat pump are not affected.
+    """
+    eps = float(_as_dict(lueneburg_cfg).get("system_asset_surcharge", 0.0) or 0.0)
+    if eps <= 0:
+        return
+    st = n.stores
+    stores = st.index[
+        st.bus.str.match(LG_NODE_RE)
+        & st.carrier.isin(LG_SYSTEM_STORE_CARRIERS)
+        & st.e_nom_extendable
+    ]
+    n.stores.loc[stores, "capital_cost"] *= 1 + eps
+    lk = n.links
+    links = lk.index[
+        lk.index.str.match(LG_NODE_RE)
+        & lk.carrier.isin(LG_SYSTEM_LINK_CARRIERS)
+        & lk.p_nom_extendable
+    ]
+    n.links.loc[links, "capital_cost"] *= 1 + eps
+    logger.info(
+        "Lüneburg tie-breaker: +%.1f%% capex on %s stores, %s links (system storage/PtX)",
+        eps * 100,
+        len(stores),
+        len(links),
+    )
+
+
 LG_RENEWABLE_GENERATORS = ["onwind", "solar", "solar rooftop", "solar-hsat", "ror"]
 LG_FROZEN_LINK_CARRIERS = [
     "CCGT",
@@ -438,6 +490,55 @@ def scale_lueneburg_base_year_electricity(n, lueneburg_cfg):
         current / 1e3,
         target / 1e3,
         factor,
+    )
+
+
+def add_lueneburg_existing_batteries(n, lueneburg_cfg):
+    """Base year: put MaStR battery stock on N01AC…N11AC home/grid batteries.
+
+    Reads Data/Electricity/lueneburg_existing_batteries.csv (inverter MW per node,
+    built by Data/Electricity/build_lueneburg_existing_batteries.py). Energy =
+    MW x assumed hours (MaStR dump has no usable kWh). Sets p_nom/e_nom and the
+    *_min bounds on the base-year units; with freeze_base_year they are fixed.
+    """
+    cfg = _as_dict(lueneburg_cfg)
+    bcfg = _as_dict(cfg.get("existing_batteries"))
+    if not bcfg.get("enable"):
+        return
+    path = Path(__file__).resolve().parents[3] / "Data" / "Electricity" / "lueneburg_existing_batteries.csv"
+    if not path.exists():
+        logger.warning("existing_batteries: %s missing — skip", path)
+        return
+    caps = pd.read_csv(path).set_index("bus")
+    freeze = bool(cfg.get("freeze_base_year"))
+    kinds = {
+        "home battery": ("home_battery_MW", float(bcfg.get("home_battery_hours", 1.7))),
+        "battery": ("battery_MW", float(bcfg.get("battery_hours", 2.0))),
+    }
+    total = {}
+    for carrier, (col, hours) in kinds.items():
+        for bus, row in caps.iterrows():
+            store_bus = f"{bus} {carrier}"
+            stores = n.stores.index[(n.stores.bus == store_bus) & (n.stores.carrier == carrier)]
+            ch = n.links.index[(n.links.carrier == f"{carrier} charger") & (n.links.bus1 == store_bus)]
+            dis = n.links.index[(n.links.carrier == f"{carrier} discharger") & (n.links.bus0 == store_bus)]
+            if not (len(stores) and len(ch) and len(dis)):
+                continue
+            mw = float(row.get(col, 0.0))
+            eff = float(n.links.at[dis[0], "efficiency"]) or 1.0
+            for s in stores[:1]:
+                n.stores.loc[s, ["e_nom", "e_nom_min"]] = mw * hours
+                if freeze:
+                    n.stores.at[s, "e_nom_extendable"] = False
+            for link, p in ((ch[0], mw), (dis[0], mw / eff)):
+                n.links.loc[link, ["p_nom", "p_nom_min"]] = p
+                if freeze:
+                    n.links.at[link, "p_nom_extendable"] = False
+            total[carrier] = total.get(carrier, 0.0) + mw
+    logger.info(
+        "Lüneburg existing batteries (MaStR): %s MW%s",
+        {k: round(v, 2) for k, v in total.items()},
+        " (fixed, base year frozen)" if freeze else " (as minimum)",
     )
 
 
@@ -2037,6 +2138,7 @@ def main(n, inputs, params, costs, current_horizon: int) -> pypsa.Network:
         _mod.apply_if_enabled(n, lueneburg_cfg)
         freeze_lueneburg_base_year(n, lueneburg_cfg)
         scale_lueneburg_base_year_electricity(n, lueneburg_cfg)
+        add_lueneburg_existing_batteries(n, lueneburg_cfg)
     # every horizon: Lüneburg plastic waste may go to DE-rest incinerators
     export_lueneburg_waste_to_de_rest(n, lueneburg_cfg)
     # S1: Abwasserwärme Fernwärme Hansestadt (10.4 MW_th heat pump from 2030)
@@ -2045,6 +2147,8 @@ def main(n, inputs, params, costs, current_horizon: int) -> pypsa.Network:
     )
     # S1: new power capacity in the Landkreis only renewable (after H2 turbines)
     ban_new_fossil_power_lueneburg(n, lueneburg_cfg)
+    # every horizon: tie-breaker so grid batteries/PtX are not spread into LG
+    surcharge_lueneburg_system_assets(n, lueneburg_cfg)
 
     # WHY: MaStR existing can sit slightly above atlite p_nom_max (e.g. N09
     # onwind) → HiGHS infeasible. Raise max to min. Also fill NaN boiler

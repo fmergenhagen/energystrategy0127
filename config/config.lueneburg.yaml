@@ -66,6 +66,19 @@ lueneburg:
   # part of the 521 GWh already used by existing heat pumps / electric heating
   # (endogenous in the model); subtracted from the scaling target
   base_year_heat_electricity_gwh: 0.0
+  # Base year: MaStR battery stock (Data/Electricity/lueneburg_existing_batteries.csv,
+  # stand 2023-08: 11.2 MW home <=30 kW, 0.3 MW larger). MaStR dump has no kWh,
+  # so energy = MW x hours (assumption: ~9 kWh per ~5.3 kW home system).
+  existing_batteries:
+    enable: true
+    home_battery_hours: 1.7
+    battery_hours: 2.0
+  # Tie-breaker: +1 % capex on extendable grid batteries, H2 stores and PtX
+  # (electrolysis, fuel cells, H2 turbines, methanolisation, FT, Sabatier) at
+  # N01–N11. LG and DE-rest have equal prices, so without it the LP is
+  # degenerate and the barrier solver spreads these assets into the Landkreis.
+  # 1 % (not 0.5 %) so the cost gap clearly exceeds Gurobi BarConvTol 1e-5.
+  system_asset_surcharge: 0.01
   # Step 5 demand overlay (521 GWh + Avacon) is gated by enable above;
   # annual total is hardcoded in modify_electricity_demand (Energiemonitor 2025).
 

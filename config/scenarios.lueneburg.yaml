@@ -36,7 +36,7 @@
 
 S0: {}
 
-S1:
+S1: &S1
   new_decentral_fossil_boiler_ban:
     DE: 2039
   absolute_fossil_heat_ban:
@@ -52,3 +52,19 @@ S1:
       source_temperature_celsius: 15.0
       start_year: 2030
       # https://www.hansestadt-lueneburg.de/rathaus/aktuelles/pressemitteilungen/meilenstein-fuer-die-energiewende-in-lueneburgs-fernwaerme-hansestadt-agl-und-avacon-natur-unterzeichnen-kooperationsvertrag-fuer-waerme-aus-abwasser.html
+
+# Sensitivity: S1 at 4-hourly instead of daily resolution, so intra-day
+# storage (batteries, small water tanks) and the day/night PV cycle are visible.
+# Same assumptions as S1 (YAML merge); only the temporal aggregation differs.
+S1_4h:
+  <<: *S1
+  clustering:
+    temporal:
+      averaging: 4h
+      resolution_sector: 4H
+  # 2040 at 4h hit "Numerical trouble" in plain barrier (dual residual stuck at
+  # 1.3e-3); homogeneous barrier is more robust. Solver setting only.
+  solving:
+    solver_options:
+      gurobi-default:
+        BarHomogeneous: 1
