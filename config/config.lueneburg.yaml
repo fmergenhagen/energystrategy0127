@@ -84,6 +84,14 @@ lueneburg:
 
 countries: ['DE']
 
+# WHY: add_existing_baseyear drops existing plants/heating aggregated per
+# (node, build-year bin) below threshold_capacity (default 10 MW). Fine for big
+# clusters, but the 11 Lüneburg nodes are small: after the N01 region fix all
+# 37 MW of LG biogas CHPs (≤4 MW per node and bin) and the small existing
+# heating stock were dropped. DE-rest aggregates are far above 0.1 MW anyway.
+existing_capacities:
+  threshold_capacity: 0.1
+
 foresight: myopic
 
 planning_horizons:
