@@ -13,12 +13,15 @@
 #   In 2040, extra electricity for heat is endogenous (HP / resistive);
 #   do not treat 521 GWh as the full 2040 story.
 #
-# S1 heating (absolute — not only “no new decentral”):
-#   absolute_fossil_heat_ban DE:2039 → in horizon 2040 drop ALL gas/oil boilers
-#   (central + decentral, existing + new) and fossil CHP heat on DE / N**.
+# S1 heating (absolute — not only “no new decentral”), Landkreis only:
+#   absolute_fossil_heat_ban LG:2039 → in horizon 2040 drop ALL gas/oil boilers
+#   (central + decentral, existing + new) and fossil CHP heat on N01–N11.
 #   Remaining heat pathways: large-scale DH HPs + individual HPs (+ non-fossil
 #   biomass/H2/waste CHP if still in the stock model).
-#   new_decentral_fossil_boiler_ban kept as belt-and-braces for stock Ariadne path.
+#   Key "LG" = N01AC…N11AC only. DE-rest follows the national pypsa-de path
+#   (no boiler ban before 2055, CO2 budget). WHY: with DE:2039 all of Germany
+#   lost its gas boilers and 21 GW gas CHP in 2040 → ~160 GW winter peak and
+#   132 GW of new gas plants, an unrealistic national backdrop for the LG study.
 #
 # S1 wastewater heat pump (Klärwerk Lüneburg → Fernwärme Mitte, from 2030):
 #   fixed 10.4 MW_th heat pump (2 × 5.2 MW Großwärmepumpen) on N01AC, drawing
@@ -38,9 +41,9 @@ S0: {}
 
 S1: &S1
   new_decentral_fossil_boiler_ban:
-    DE: 2039
+    LG: 2039
   absolute_fossil_heat_ban:
-    DE: 2039
+    LG: 2039
   lueneburg:
     renewables_only_new_power: true
     wastewater_waste_heat:

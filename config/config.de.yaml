@@ -264,7 +264,7 @@ wasserstoff_kernnetz:
 new_decentral_fossil_boiler_ban:
   DE: 2055
 
-# Empty by default; Lüneburg S1 sets DE:2039 (all fossil heat off in 2040).
+# Empty by default; Lüneburg S1 sets LG:2039 (fossil heat off on N01–N11 in 2040).
 absolute_fossil_heat_ban: {}
 
 coal_generation_ban:

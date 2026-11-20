@@ -78,7 +78,14 @@ def remove_old_boiler_profiles(n):
 
 
 def _links_in_country(n, ct: str) -> pd.Series:
-    """Boolean mask: link name belongs to country (N**AC counts as DE)."""
+    """Boolean mask: link name belongs to country (N**AC counts as DE).
+
+    ct == "LG" selects only the Landkreis Lüneburg nodes N01AC…N11AC, so
+    heat bans can be scoped to the study region while DE-rest follows the
+    national pathway.
+    """
+    if ct == "LG":
+        return n.links.index.str.match(LG_NODE_RE)
     return name_country(n.links.index) == ct
 
 
