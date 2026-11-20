@@ -1,0 +1,55 @@
+Landkreis,Stadt_Samtgemeinde,Gemeindename,PLZ,AGS_Amtlicher_Gemeindeschluessel,Amtlicher_Regionalschluessel,Unternehmen,Teilnetz,Fernwaerme_Anteil,EE_Anteil_Fernwaerme
+Lüneburg,"Adendorf, Gemeinde",Adendorf,21365,3355001,33550001001,,,0.03680276,NA
+,"Bleckede, Stadt",Bleckede,19273,3355009,33550009009,,,0.030088496,NA
+,"Bleckede, Stadt",Bleckede,21354,3355009,33550009009,,,0.030088496,NA
+,"Lüneburg, Hansestadt","Lüneburg, Hansestadt",21335,3355022,33550022022,Avacon Natur GmbH,Lüneburg Hanseviertel,0.091536506,0.65
+,"Lüneburg, Hansestadt","Lüneburg, Hansestadt",21335,3355022,33550022022,Avacon Natur GmbH,Lüneburg Kaltenmoor,0.091536506,0
+,"Lüneburg, Hansestadt","Lüneburg, Hansestadt",21335,3355022,33550022022,Avacon Natur GmbH,Lüneburg Mitte,0.091536506,0.15
+,"Lüneburg, Hansestadt","Lüneburg, Hansestadt",21337,3355022,33550022022,Avacon Natur GmbH,Lüneburg Hanseviertel,0.091536506,0.65
+,"Lüneburg, Hansestadt","Lüneburg, Hansestadt",21337,3355022,33550022022,Avacon Natur GmbH,Lüneburg Kaltenmoor,0.091536506,0
+,"Lüneburg, Hansestadt","Lüneburg, Hansestadt",21337,3355022,33550022022,Avacon Natur GmbH,Lüneburg Mitte,0.091536506,0.15
+,"Lüneburg, Hansestadt","Lüneburg, Hansestadt",21339,3355022,33550022022,Avacon Natur GmbH,Lüneburg Hanseviertel,0.091536506,0.65
+,"Lüneburg, Hansestadt","Lüneburg, Hansestadt",21339,3355022,33550022022,Avacon Natur GmbH,Lüneburg Kaltenmoor,0.091536506,0
+,"Lüneburg, Hansestadt","Lüneburg, Hansestadt",21339,3355022,33550022022,Avacon Natur GmbH,Lüneburg Mitte,0.091536506,0.15
+,"Amt Neuhaus, Samtgemeinde",Amt Neuhaus,19273,3355049,33550049049,,,0.097929491,NA
+,"Amelinghausen, Samtgemeinde",Amelinghausen,21385,3355002,33555401002,,,0.071818891,NA
+,,Betzendorf,21386,3355008,33555401008,,,0.037688442,NA
+,,Oldendorf (Luhe),21385,3355027,33555401027,,,0.064343164,NA
+,,Rehlingen,21385,3355029,33555401029,,,0.039007092,NA
+,,Soderstorf,21388,3355034,33555401034,,,0.042372881,NA
+,"Bardowick, Samtgemeinde","Bardowick, Flecken",21357,3355004,33555402004,,,0.033527697,NA
+,,Barum,21357,3355007,33555402007,,,0.057068742,NA
+,,Handorf,21447,3355017,33555402017,,,0.030178326,NA
+,,Mechtersen,21358,3355023,33555402023,,,0.031496063,NA
+,,Radbruch,21449,3355028,33555402028,,,0.04,NA
+,,Vögelsen,21360,3355039,33555402039,,,0.023952096,NA
+,,Wittorf,21357,3355042,33555402042,,,0.031578947,NA
+,"Dahlenburg, Samtgemeinde",Boitze,21368,3355010,33555403010,,,0.058823529,NA
+,,Dahlem,21368,3355012,33555403012,,,0.027932961,NA
+,,"Dahlenburg, Flecken",21368,3355013,33555403013,,,0.077887198,NA
+,,Nahrendorf,21369,3355025,33555403025,,,0.01934236,NA
+,,Tosterglope,21371,3355037,33555403037,,,0.049382716,NA
+,"Gellersen, Samtgemeinde",Kirchgellersen,21394,3355020,33555404020,,,0.032594524,NA
+,,Kirchgellersen,21444,3355020,33555404020,,,0.032594524,NA
+,,Reppenstedt,21391,3355031,33555404031,,,0.020427553,NA
+,,Südergellersen,21394,3355035,33555404035,,,0.027472527,NA
+,,Westergellersen,21394,3355041,33555404041,,,0.022222222,NA
+,"Ilmenau, Samtgemeinde",Barnstedt,21406,3355006,33555405006,,,0.035087719,NA
+,,Deutsch Evern,21407,3355014,33555405014,,,0.035714286,NA
+,,Embsen,21409,3355016,33555405016,,,0.035049288,NA
+,,Melbeck,21406,3355024,33555405024,,,0.03030303,NA
+,"Ostheide, Samtgemeinde",Barendorf,21397,3355005,33555406005,,,0.050299401,NA
+,,Neetze,21379,3355026,33555406026,,,0.027624309,NA
+,,Neetze,21398,3355026,33555406026,,,0.027624309,NA
+,,Reinstorf,21400,3355030,33555406030,,,0.026200873,NA
+,,Thomasburg,21401,3355036,33555406036,,,0.042944785,NA
+,,Vastorf,21397,3355038,33555406038,,,0.036764706,NA
+,,Wendisch Evern,21403,3355040,33555406040,,,0.032040472,NA
+,"Scharnebeck, Samtgemeinde","Artlenburg, Flecken",21380,3355003,33555407003,,,0.048657718,NA
+,,Brietlingen,21382,3355011,33555407011,,,0.042253521,NA
+,,Echem,21379,3355015,33555407015,,,0.040816327,NA
+,,Hittbergen,21522,3355018,33555407018,,,0.012012012,NA
+,,Hohnstorf (Elbe),21522,3355019,33555407019,,,0.031319911,NA
+,,Lüdersburg,21379,3355021,33555407021,,,0.019920319,NA
+,,Rullstorf,21379,3355032,33555407032,,,0.029733959,NA
+,,Scharnebeck,21379,3355033,33555407033,,,0.024074074,NA

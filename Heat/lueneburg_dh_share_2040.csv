@@ -1,0 +1,12 @@
+node_id,bus,district_fraction,node,source_pct
+N01,N01AC,0.20,Hansestadt Lüneburg,20
+N02,N02AC,0.05,Bleckede,5
+N03,N03AC,0.10,Adendorf,10
+N04,N04AC,0.00,Amt Neuhaus,0
+N05,N05AC,0.00,Amelinghausen,0
+N06,N06AC,0.00,Bardowick,0
+N07,N07AC,0.05,Dahlenburg,5
+N08,N08AC,0.05,Gellersen,5
+N09,N09AC,0.00,Ilmenau,0
+N10,N10AC,0.00,Ostheide,0
+N11,N11AC,0.00,Scharnebeck,0

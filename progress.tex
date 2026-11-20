@@ -1,0 +1,413 @@
+% Living lab notebook — Waermeziel Lüneburg / PyPSA-DE V2
+% Update this file after each step. Compile with: pdflatex progress.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\small, breaklines=true, frame=single}
+
+\title{Waermeziel Lüneburg --- PyPSA-DE V2\\progress log}
+\author{project notes (living document)}
+\date{started 2026-11-03; last update 2026-11-13}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Goal.}
+PyPSA-DE model of Landkreis Lüneburg:
+11 nodes \texttt{N01}--\texttt{N11} (Samt-/Einheitsgemeinden) + copperplate \texttt{DE-rest}.
+PyPSA is the model; local data overlays replace default DE totals for the Landkreis.
+Weather year 2013. Temporal averaging \texttt{24h} (laptop-sized).
+Scenarios later: S0\,=\,2025 baseline, S1\,=\,2040 carbon-free heating.
+
+\noindent\textbf{Working mode.}
+One step at a time; this file tracks what was done and what is next.
+
+\tableofcontents
+\vspace{1em}
+
+%% ------------------------------------------------------------------
+\section{Data inventory (local overlays)}
+%% ------------------------------------------------------------------
+
+\begin{center}
+\begin{tabular}{@{}llp{6.2cm}@{}}
+\toprule
+Folder & Role & Key artefacts \\
+\midrule
+\texttt{Data/nodes/} & Topology & \texttt{nodes.csv}, \texttt{population.csv},
+  \texttt{lueneburg\_11\_nodes.geojson}, adjacency CSV \\
+\texttt{Data/Electricity/energiemonitor/} & El.\ annual energy & Verbrauch $\approx$\,521\,GWh (2025) \\
+\texttt{Data/Electricity/Avacon/} & El.\ hourly shape & \texttt{load\_profile\_hourly\_norm.csv} (sums to 1) \\
+\texttt{Data/Heat/heitkötter\ldots/} & Heat annual + shape + DH hints & AGS\,3355 space+DHW series; FW-Anteile register \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Important split.}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Electricity} $\neq$ Heitkötter.
+        Total from Energiemonitor; profile from Avacon.
+  \item \textbf{Heat} $=$ Heitkötter (space heating + DHW at NUTS3 AGS\,3355),
+        plus local Fernwärme shares from the Gemeinden register CSV.
+\end{itemize}
+
+%% ------------------------------------------------------------------
+\section{Steps --- status}
+%% ------------------------------------------------------------------
+
+\begin{center}
+\begin{tabular}{@{}clp{8cm}@{}}
+\toprule
+\# & Status & Title \\
+\midrule
+1 & done & Stock DACH/DE smoke; confirm DE935 has 1 HV bus (UW Lüneburg) \\
+2 & done & \texttt{lueneburg\_11\_nodes.geojson} from LAU 2019 (AGS\,03355) \\
+3 & done & \texttt{custom\_busshapes} + synthetic buses N02--N11 + adjacency lines \\
+4 & done & \texttt{config/config.lueneburg.yaml} + smoke \texttt{config.lueneburg-smoke.yaml} \\
+5 & done & Electricity demand overlay \\
+6 & done & Heat demand + DH share overlay (tech stock later) \\
+7 & done & MaStR existing capacities per node \\
+8 & done & S0 / S1 scenario definitions \\
+9 & done & KPIs (S0 vs S1 readout) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+%% ------------------------------------------------------------------
+\section{Done --- notes}
+%% ------------------------------------------------------------------
+
+\subsection{Step 1 --- stock test}
+DACH sector smoke exposed Ariadne/averaging infeasibility; abandoned as main path.
+DE-only path kept. DE935 (NUTS3 Landkreis Lüneburg) has \textbf{one} $\ge$220\,kV bus
+(UW Lüneburg / OSM \texttt{way/28327356}), so nine further nodes need synthetic buses.
+
+\subsection{Step 2 --- node polygons}
+Script: \texttt{Data/nodes/build\_lueneburg\_nodes.py}.
+LAU 2019 polygons with \texttt{LAU\_ID} starting \texttt{03355}, dissolved to 11 nodes.
+Tosterglope mapped into N07 (Dahlenburg); Bavendorf dropped.
+Outputs: \texttt{lueneburg\_11\_nodes.geojson}, \texttt{lueneburg\_lau\_to\_node.csv}.
+
+\subsection{Step 3 --- topology}
+\begin{itemize}[leftmargin=*]
+  \item \texttt{Data/nodes/build\_busshapes.py} $\to$
+        \texttt{pypsa-de/data/busshapes/simplified\_12\_osm.geojson}
+        (N01--N11 + DE-rest).
+  \item Rule \texttt{add\_lueneburg\_synthetic\_buses}
+        (\texttt{scripts/pypsa-de/add\_lueneburg\_synthetic\_buses.py}):
+        inject N02--N11 at centroids; 31 LG- lines from adjacency matrix;
+        $s_\mathrm{nom}=200$\,MW placeholder; N01 = real UW bus.
+  \item Bug fixed: remove \texttt{from \_\_future\_\_ import annotations}
+        (Snakemake prepends a wrapper $\Rightarrow$ SyntaxError).
+\end{itemize}
+
+\subsection{Step 4 --- config + smoke cluster}
+\begin{itemize}[leftmargin=*]
+  \item Overlay: \texttt{pypsa-de/config/config.lueneburg.yaml}
+        (DE only, \texttt{custom\_busshapes}, \texttt{n\_clusters: 12},
+        \texttt{averaging: 24h}, horizons 2025/2040, HiGHS).
+  \item Smoke (1 week, self-contained single configfile):
+        \texttt{config/test/config.lueneburg-smoke.yaml}.
+  \item Verified: \texttt{clustered.nc} has
+        \texttt{N01AC}\ldots\texttt{N11AC} + \texttt{DE-restAC}
+        (480\,$\to$\,12 buses, 32 lines).
+\end{itemize}
+
+Smoke command:
+\begin{lstlisting}
+rm -rf resources/lueneburg-smoke
+pixi run snakemake -call cluster_network \
+  --configfile=config/test/config.lueneburg-smoke.yaml
+\end{lstlisting}
+
+%% ------------------------------------------------------------------
+\section{Step 5 --- electricity demand overlay}
+%% ------------------------------------------------------------------
+
+\noindent\fbox{\parbox{0.96\textwidth}{
+\textbf{Why (Step 5).}
+PyPSA-DE spreads \emph{national} electricity demand by raster onto HV buses.
+Landkreis Lüneburg then only gets the load that lands on the real UW (N01);
+N02--N11 get nothing, and the annual total/shape are not the local meter truth.
+We therefore \emph{overwrite} N01--N11 with a local overlay and shift the previous
+N01 attribution into \texttt{DE-restAC} so Germany's total load is unchanged.
+Heat (Heitkötter) is \textbf{not} part of this step --- that is Step 6.
+}}
+
+\vspace{0.8em}
+
+\subsection{What / sources}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Annual:} Energiemonitor \texttt{Verbrauch} 2025 $\approx$\,\textbf{521\,GWh}.
+  \item \textbf{Shape:} Avacon \texttt{load\_profile\_hourly\_norm.csv} (8760 shares, $\sum=1$),
+        mapped by hour-of-year onto model timestamps (weather year 2013).
+  \item \textbf{Spatial split:} population shares
+        $\Rightarrow$ $L_i(t)=521\,\mathrm{GWh}\cdot w_i\cdot s(t)$.
+  \item \textbf{Not Heitkötter} (heat only).
+\end{itemize}
+
+\subsection{Code touch points (keep small)}
+\begin{itemize}[leftmargin=*]
+  \item \emph{New:} \texttt{modify\_electricity\_demand.py} + one rule in
+        \texttt{modifications.smk} $\to$ \texttt{electricity\_demand-modified.nc}
+  \item \emph{One switch:} \texttt{input\_electricity\_demand()} used by
+        \texttt{compose} and \texttt{time\_aggregation} when \texttt{lueneburg.enable}
+  \item Table: \texttt{Data/Electricity/lueneburg\_el\_demand\_annual.csv}
+\end{itemize}
+
+\begin{lstlisting}
+pixi run snakemake -call \
+  resources/lueneburg-smoke/KN2045_Mix/electricity_demand-modified.nc \
+  --configfile=config/test/config.lueneburg-smoke.yaml
+\end{lstlisting}
+
+%% ------------------------------------------------------------------
+\section{Step 6 --- heat demand + DH share}
+%% ------------------------------------------------------------------
+
+\noindent\fbox{\parbox{0.96\textwidth}{
+\textbf{Why (Step 6).}
+Electricity (Step 5) and heat are different carriers. Stock PyPSA-DE heat annuals
+come from national totals $\times$ population and shapes from atlite HDD --- so
+synthetic nodes N02--N11 get no heat, and the Landkreis total/shape are wrong.
+Heitkötter gives a calibrated residential heat series for AGS\,3355; the local
+Fernwärme register gives node DH shares. We overlay those and leave heating
+\emph{technology stock} to a later step.
+}}
+
+\vspace{0.8em}
+
+\subsection{What / sources}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Annual:} Heitkötter AGS\,3355 --- space $\approx$\,1104\,GWh + DHW $\approx$\,192\,GWh
+        (all booked as residential; no services split in source).
+  \item \textbf{Shape:} Heitkötter 15-min $\to$ hourly, hour-of-year onto model timestamps.
+  \item \textbf{Spatial split:} population shares (same as electricity).
+  \item \textbf{DH share:} \texttt{Data/Heat/lueneburg\_dh\_share.csv} from Gemeinden
+        \texttt{Fernwaerme\_Anteil} (mean per node); urban fraction floored to DH share.
+  \item \textbf{Conserve} DE totals via \texttt{DE-restAC}.
+  \item \textbf{Tiny stock fix:} \texttt{build\_heat\_demand} maps \texttt{N**AC}$\to$DE
+        for heating efficiencies (\texttt{str[:2]} would yield \texttt{N0}).
+\end{itemize}
+
+\subsection{Code touch points (keep small)}
+\begin{itemize}[leftmargin=*]
+  \item \texttt{modify\_heat\_demand.py} $\to$
+        \texttt{hourly\_heat\_demand\_total-modified.nc} +
+        \texttt{pop\_weighted\_\{heat,energy\}\_totals-modified.csv}
+  \item \texttt{modify\_lueneburg\_dh\_share.py} (after egon)
+        $\to$ \texttt{district\_heat\_share\_\{horizon\}-lueneburg.csv}
+  \item Helpers in \texttt{build\_electricity.smk}; compose / time\_aggregation switch
+        when \texttt{lueneburg.enable}
+\end{itemize}
+
+\begin{lstlisting}
+pixi run python scripts/pypsa-de/modify_heat_demand.py
+pixi run python scripts/pypsa-de/modify_lueneburg_dh_share.py
+\end{lstlisting}
+
+Heating technology stock (boilers/HPs) stays stock for now; S1 (Step 8) will change it.
+
+%% ------------------------------------------------------------------
+\section{Later steps (stubs)}
+%% ------------------------------------------------------------------
+
+\subsection{Step 7 --- MaStR (drafted 2026-11-09)}
+
+\noindent\fbox{\parbox{0.96\textwidth}{
+\textbf{Why (Step 7).}
+With \texttt{foresight: myopic}, stock brownfield wind/PV come from IRENA spread by
+\texttt{p\_nom\_max}, not from the local plant register. That puts the wrong MW on
+N01--N11. We overwrite those generators from MaStR (AGS\,03355, In Betrieb) and
+shrink \texttt{DE-restAC} by the same delta.
+}}
+
+\begin{itemize}[leftmargin=*]
+  \item Table: \texttt{Data/Electricity/lueneburg\_existing\_capacity.csv}
+        (wind $\approx$266, solar $\approx$79, biomass $\approx$38\,MW nameplate In Betrieb).
+  \item Energiemonitor peak-day (228/44/17) = sanity check only.
+  \item Apply: \texttt{modify\_lueneburg\_existing\_capacities.apply\_if\_enabled}
+        at end of \texttt{modify\_prenetwork} when \texttt{lueneburg.enable}.
+  \item CHP links still stock (\texttt{german\_chp}); refine later if needed.
+\end{itemize}
+
+\subsection{Step 8 --- S0 / S1 (drafted 2026-11-09)}
+
+\noindent\fbox{\parbox{0.96\textwidth}{
+\textbf{Why (Step 8).}
+RQ = today vs carbon-free heat in 2040.
+\texttt{S0} $=$ \textbf{2025 today}; \texttt{S1} $=$ \textbf{2040, no fossil heating}.
+}}
+
+\begin{itemize}[leftmargin=*]
+  \item File: \texttt{config/scenarios.lueneburg.yaml}
+  \item \textbf{S0:} empty overlay; KPI horizon \textbf{2025}.
+  \item \textbf{S1:} \texttt{new\_decentral\_fossil\_boiler\_ban: \{DE: 2039\}}
+        --- no \emph{new} decentral oil/gas boilers at 2040.
+        Existing / urban-central fossil may remain until we tighten.
+  \item \textbf{Demand:} Energiemonitor 521\,GWh is exogenous for \emph{today} only;
+        2040 heat-electricity is endogenous (HP/RH).
+  \item Compare: \textbf{S0@2025 vs S1@2040}.
+\end{itemize}
+
+\subsection{Step 9 --- KPIs (drafted 2026-11-09)}
+
+\noindent\fbox{\parbox{0.96\textwidth}{
+\textbf{What is a KPI?}
+A \emph{key performance indicator}: one of a small set of numbers that answer
+the RQ. Not every model output.
+}}
+
+\vspace{0.6em}
+\noindent\fbox{\parbox{0.96\textwidth}{
+\textbf{Why these KPIs / framing.}
+\texttt{S0@2025} $=$ today; \texttt{S1@2040} $=$ no fossil heating.
+Exogenous 521\,GWh applies to \emph{today} only. The S1 story is extra
+electricity for heat + which generation/\textbf{storage} is built.
+}}
+
+\paragraph{KPI families}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{demand:} today exogenous el (521\,GWh); S1 electricity-for-heat (HP/RH);
+        optional EV load (see below)
+  \item \textbf{capacity:} installed / optimal / new MW on N01--N11 (RE, HP, boilers)
+  \item \textbf{storage:} battery (+ others if present); \textbf{heat/TES}
+        (water tanks / thermal stores --- \texttt{sector.tes: true} in stock)
+  \item \textbf{cost / CO$_2$:} system supporting metrics
+  \item \textbf{baselines:} Energiemonitor + MaStR
+\end{itemize}
+
+\paragraph{EVs}
+Stock config has \texttt{sector.transport: true}; DE mobility shares electrify
+strongly toward 2040 (\texttt{land\_transport\_ice\_share} falls, electric rises via
+Aladin overwrite). So \textbf{yes, EVs play a role} in 2040 electricity demand by
+default --- they are \emph{not} the RQ, but they confound a heat-only comparison.
+Options: (a) keep and report EV load as its own KPI row; (b) freeze electric-share
+at 2025 for a heat-only study.
+
+\paragraph{Imports}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Abroad:} off --- \texttt{countries: ['DE']} and
+        \texttt{sector.imports.enable: false} (no Stromnachbarn / H$_2$ imports in v1).
+  \item \textbf{Landkreis $\leftarrow$ DE-rest:} \emph{yes, central.}
+        N01--N11 exchange power with \texttt{DE-restAC} over the clustered lines.
+        Net annual import (GWh) and peak import (MW) are KPIs for autarky /
+        ``how much must the rest of DE cover when heat electrifies''.
+  \item Fuels (gas/oil) into LG heat are implicit via carrier use until we add
+        explicit fuel-balance KPIs.
+\end{itemize}
+
+\paragraph{Waste heat \& wind/PV potentials}
+\begin{itemize}[leftmargin=*]
+  \item \textbf{Why N01--N11 trade despite Landkreis totals:}
+        Annual el/heat are Landkreis totals, but they are \emph{split} onto
+        nodes (pop weights), MaStR stock is uneven, DH shares differ, and
+        RE land differs by polygon. Heat does \emph{not} trade between
+        Gemeinden; only electricity does --- over placeholder
+        \texttt{LG-*} lines ($s_\mathrm{nom}=200$\,MW, adjacency matrix) and
+        links to \texttt{DE-restAC}. Collapsing to one LG copperplate would
+        kill intra-LG flows by construction; the 11 nodes exist so rural RE
+        surplus can serve urban HP load.
+  \item \textbf{How we get \texttt{p\_nom\_max}:}
+        stock pipeline --- atlite cutout
+        \texttt{de-2013-sarah3-era5} $\times$ exclusion/availability matrix
+        $\times$ N01--N11 busshapes $\to$
+        \texttt{build\_renewable\_profiles}
+        ($p_\mathrm{nom,max}=\mathrm{MW/km}^2\times\mathrm{avail.}\times\mathrm{area}$
+        summed per bus). Read from
+        \texttt{resources/.../profile\_\{onwind,solar\}.nc} or
+        \texttt{n.generators.p\_nom\_max}. MaStR overwrote \emph{existing}
+        only; potentials stay stock. Optional later: tighter local land-use
+        caps.
+  \item \textbf{Waste / excess heat --- use Manz et al.\ for DH:}
+        yes for stock geothermal (and other Manz sources if listed).
+        Data: Fraunhofer Fordatis / Manz et al.\ 2024, mapped LAU $\to$
+        onshore regions (= our N** polygons) in
+        \texttt{build\_geothermal\_heat\_potential}. Enable with
+\begin{lstlisting}
+sector:
+  heat_pump_sources:
+    urban central: [air, geothermal]
+\end{lstlisting}
+        Default is air-only. Separate: PtX process waste heat
+        (\texttt{use\_*\_waste\_heat} flags) only if those plants sit on the
+        node; Hotmaps industrial sites for plant-level excess heat.
+        No custom LG industrial inventory yet --- Manz geothermal is the
+        clean v1 path for DH excess/renewable heat.
+\end{itemize}
+
+\begin{lstlisting}
+pixi run python scripts/pypsa-de/compute_lueneburg_kpis.py \
+  --s0 results/lueneburg/S0/networks/solved_2040.nc \
+  --s1 results/lueneburg/S1/networks/solved_2040.nc
+\end{lstlisting}
+
+%% ------------------------------------------------------------------
+\section{Change log}
+%% ------------------------------------------------------------------
+
+\begin{description}[style=nextline,leftmargin=1.2cm]
+  \item[2026-11-03] Created this file. Steps 1--4 recorded as done.
+        Step 5 specified: Energiemonitor 521\,GWh + Avacon profile + population weights.
+        Clarified Heitkötter $=$ heat only (Step 6).
+  \item[2026-11-03] Step 5 drafted: annual CSV, \texttt{modify\_electricity\_demand}
+        script/rule, compose + time\_aggregation wired; conserve DE total via DE-rest.
+  \item[2026-11-03] Step 5 slimmed: hardcoded 521\,GWh, fewer params; Why-box in this
+        file + WHY comments in script/rule.
+  \item[2026-11-03] Step 6 drafted: Heitkötter annuals/shape + DH shares; two modify
+        rules; efficiency N**AC$\to$DE fix; Why-box.
+  \item[2026-11-09] Step 7 drafted: MaStR extract $\to$ capacity CSV; prenetwork
+        hook overwrites N01--N11 onwind/solar (etc.) and adjusts DE-rest.
+  \item[2026-11-09] Step 8 drafted: \texttt{scenarios.lueneburg.yaml} S0/S1;
+        config.lueneburg run names; boiler-ban includes N**AC.
+  \item[2026-11-09] Step 9 drafted: KPI definition + \texttt{compute\_lueneburg\_kpis.py}
+        (needs solved S0/S1 nets to fill RQ deltas).
+  \item[2026-11-09] Enabled Manz geothermal for DH
+        (\texttt{sector.heat\_pump\_sources.urban central: [air, geothermal]}).
+        Fixed \texttt{compose.smk} LG input helpers (call with \texttt{w}).
+        Cutout: stock \texttt{europe-2013} (custom \texttt{de-2013} 404 on archive);
+        curl-downloaded 6.1\,GB. S0/S1 solve \textbf{blocked}: disk full
+        ($\sim$100\%, \texttt{Errno 28} in \texttt{build\_ship\_raster}).
+        Need $\gtrsim$20\,GB free before resume + KPI step.
+  \item[2026-11-09] Resume attempt: S0 \texttt{shipdensity\_raster.tif} OK (323\,MB);
+        S1 wrote incomplete \texttt{shipdensity\_global.tif} $\sim$9\,GB $\to$ disk full again.
+        Switched \texttt{shared\_resources.policy: base}; removed incomplete S1 extract;
+        clipped raster parked at shared path. Still $\sim$1\,GB free --- need more space.
+  \item[2026-11-12] Resume: iCloud had evicted \texttt{.pixi} env + many
+        scripts/rules (dataless). Reinstalled pixi; restored 212 tracked files
+        from git; re-downloaded europe-2013 cutout (6.1\,GB, verified).
+        Disk full again ($\sim$0.7\,GB free) --- cannot start solve until
+        $\gtrsim$20\,GB free. Tip: keep \texttt{pypsa-de} off iCloud Optimize
+        Storage so cutout/env are not re-evicted.
+  \item[2026-11-13] Disk freed ($\sim$13--16\,GB). Snakemake still hung on
+        iCloud dataless under \texttt{.pixi}/resources. Relocated
+        \texttt{.pixi} $\to$ \texttt{\~/Library/Caches/Waermeziel-pypsa-de-pixi}
+        (symlink) + fresh \texttt{pixi install}; hydrated resources; deleted
+        dataless data stubs for re-fetch; moved
+        \texttt{.snakemake/storage} off Desktop. Dry-run OK (211 jobs).
+        S0@2025 + S1@2040 solve running
+        (\texttt{logs/lueneburg/s0\_s1\_solve\_resume5.log}).
+        Hit empty \texttt{data/jrc\_idees} dirs (dataless stubs deleted,
+        folders remained) $\to$ re-retrieved 800\,MB IDEES; resume6.
+        BFE Swiss VWZ 2024 row renames broke
+        \texttt{build\_swiss\_energy\_balances} --- patched aliases in script.
+        Manz geothermal: N04/N05/N07 had no LAU overlap --- fill 0 for
+        \texttt{N**} synthetics. CHP map: DE-rest overlaps LG $\to$ prefer
+        \texttt{N**} on sjoin ties.         Country code: map \texttt{N**AC}
+        $\to$ DE via \texttt{bus\_country()} (not N0/N1).
+        First compose OK; S1@2025 infeasible (MaStR $p_\mathrm{nom,min}>p_\mathrm{nom,max}$
+        on N09 onwind + NaN boiler profiles) --- sanitized in
+        \texttt{modify\_prenetwork}. Resume18 finished 8/8 steps
+        (HiGHS status Unknown but solutions parsed).
+        KPIs: \texttt{Data/kpis/lueneburg\_kpis.\{csv,md\}}
+        (S0@2025 vs S1@2040).
+\end{description}
+
+\end{document}

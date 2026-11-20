@@ -1,0 +1,12 @@
+node_id,node,node_type,population,share,source,reference_date
+N01,Hansestadt Lüneburg,Einheitsgemeinde,74502,0.415783,Destatis EVAS 12411 (via Wikipedia Landkreis Lüneburg),2025-12-31
+N02,Bleckede,Einheitsgemeinde,9121,0.050903,Destatis EVAS 12411 (via Wikipedia Landkreis Lüneburg),2025-12-31
+N03,Adendorf,Einheitsgemeinde,10795,0.060245,Destatis EVAS 12411 (via Wikipedia Landkreis Lüneburg),2025-12-31
+N04,Amt Neuhaus,Einheitsgemeinde,4330,0.024165,Destatis EVAS 12411 (via Wikipedia Landkreis Lüneburg),2025-12-31
+N05,Amelinghausen,Samtgemeinde,7972,0.044490,Destatis EVAS 12411 (via Wikipedia Landkreis Lüneburg),2025-12-31
+N06,Bardowick,Samtgemeinde,17618,0.098323,Destatis EVAS 12411 (via Wikipedia Landkreis Lüneburg),2025-12-31
+N07,Dahlenburg,Samtgemeinde,5582,0.031152,Destatis EVAS 12411 (via Wikipedia Landkreis Lüneburg),2025-12-31
+N08,Gellersen,Samtgemeinde,12898,0.071981,Destatis EVAS 12411 (via Wikipedia Landkreis Lüneburg),2025-12-31
+N09,Ilmenau,Samtgemeinde,10465,0.058403,Destatis EVAS 12411 (via Wikipedia Landkreis Lüneburg),2025-12-31
+N10,Ostheide,Samtgemeinde,10353,0.057778,Destatis EVAS 12411 (via Wikipedia Landkreis Lüneburg),2025-12-31
+N11,Scharnebeck,Samtgemeinde,15549,0.086776,Destatis EVAS 12411 (via Wikipedia Landkreis Lüneburg),2025-12-31

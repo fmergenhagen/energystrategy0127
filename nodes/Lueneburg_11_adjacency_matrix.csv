@@ -1,0 +1,12 @@
+x\y,Hansestadt Lüneburg,Bleckede,Adendorf,Amt Neuhaus,Amelinghausen,Bardowick,Dahlenburg,Gellersen,Ilmenau,Ostheide,Scharnebeck
+Hansestadt Lüneburg,,0,1,0,1,1,0,1,1,1,1
+Bleckede,0,,0,1,0,0,1,0,0,1,1
+Adendorf,1,0,,0,0,1,0,0,0,0,1
+Amt Neuhaus,0,1,0,,0,0,0,0,0,0,0
+Amelinghausen,1,0,0,0,,1,0,1,1,1,1
+Bardowick,1,0,1,0,1,,0,1,1,1,1
+Dahlenburg,0,1,0,0,0,0,,1,1,1,1
+Gellersen,1,0,0,0,1,1,1,,1,1,1
+Ilmenau,1,0,0,0,1,1,1,1,,1,0
+Ostheide,1,1,0,0,1,1,1,1,1,,1
+Scharnebeck,1,1,1,0,1,1,1,1,0,1,

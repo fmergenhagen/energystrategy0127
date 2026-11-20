@@ -1,0 +1,44 @@
+LAU_ID,LAU_NAME,key,node_id,node,node_type
+03355001,Adendorf,adendorf,N03,Adendorf,Einheitsgemeinde
+03355002,Amelinghausen,amelinghausen,N05,Amelinghausen,Samtgemeinde
+03355003,"Artlenburg, Flecken",artlenburg,N11,Scharnebeck,Samtgemeinde
+03355004,"Bardowick, Flecken",bardowick,N06,Bardowick,Samtgemeinde
+03355005,Barendorf,barendorf,N10,Ostheide,Samtgemeinde
+03355006,Barnstedt,barnstedt,N09,Ilmenau,Samtgemeinde
+03355007,Barum,barum,N06,Bardowick,Samtgemeinde
+03355008,Betzendorf,betzendorf,N05,Amelinghausen,Samtgemeinde
+03355009,"Bleckede, Stadt",bleckede,N02,Bleckede,Einheitsgemeinde
+03355010,Boitze,boitze,N07,Dahlenburg,Samtgemeinde
+03355011,Brietlingen,brietlingen,N11,Scharnebeck,Samtgemeinde
+03355012,Dahlem,dahlem,N07,Dahlenburg,Samtgemeinde
+03355013,"Dahlenburg, Flecken",dahlenburg,N07,Dahlenburg,Samtgemeinde
+03355014,Deutsch Evern,deutschevern,N09,Ilmenau,Samtgemeinde
+03355015,Echem,echem,N11,Scharnebeck,Samtgemeinde
+03355016,Embsen,embsen,N09,Ilmenau,Samtgemeinde
+03355017,Handorf,handorf,N06,Bardowick,Samtgemeinde
+03355018,Hittbergen,hittbergen,N11,Scharnebeck,Samtgemeinde
+03355019,Hohnstorf (Elbe),hohnstorf,N11,Scharnebeck,Samtgemeinde
+03355020,Kirchgellersen,kirchgellersen,N08,Gellersen,Samtgemeinde
+03355021,Lüdersburg,ludersburg,N11,Scharnebeck,Samtgemeinde
+03355022,"Lüneburg, Hansestadt",luneburg,N01,Hansestadt Lüneburg,Einheitsgemeinde
+03355023,Mechtersen,mechtersen,N06,Bardowick,Samtgemeinde
+03355024,Melbeck,melbeck,N09,Ilmenau,Samtgemeinde
+03355025,Nahrendorf,nahrendorf,N07,Dahlenburg,Samtgemeinde
+03355026,Neetze,neetze,N10,Ostheide,Samtgemeinde
+03355027,Oldendorf (Luhe),oldendorf,N05,Amelinghausen,Samtgemeinde
+03355028,Radbruch,radbruch,N06,Bardowick,Samtgemeinde
+03355029,Rehlingen,rehlingen,N05,Amelinghausen,Samtgemeinde
+03355030,Reinstorf,reinstorf,N10,Ostheide,Samtgemeinde
+03355031,Reppenstedt,reppenstedt,N08,Gellersen,Samtgemeinde
+03355032,Rullstorf,rullstorf,N11,Scharnebeck,Samtgemeinde
+03355033,Scharnebeck,scharnebeck,N11,Scharnebeck,Samtgemeinde
+03355034,Soderstorf,soderstorf,N05,Amelinghausen,Samtgemeinde
+03355035,Südergellersen,sudergellersen,N08,Gellersen,Samtgemeinde
+03355036,Thomasburg,thomasburg,N10,Ostheide,Samtgemeinde
+03355037,Tosterglope,tosterglope,N07,Dahlenburg,Samtgemeinde
+03355038,Vastorf,vastorf,N10,Ostheide,Samtgemeinde
+03355039,Vögelsen,vogelsen,N06,Bardowick,Samtgemeinde
+03355040,Wendisch Evern,wendischevern,N10,Ostheide,Samtgemeinde
+03355041,Westergellersen,westergellersen,N08,Gellersen,Samtgemeinde
+03355042,Wittorf,wittorf,N06,Bardowick,Samtgemeinde
+03355049,Amt Neuhaus,amtneuhaus,N04,Amt Neuhaus,Einheitsgemeinde

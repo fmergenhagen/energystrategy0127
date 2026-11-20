@@ -1,0 +1,49 @@
+scenario,horizon,region,kpi_family,kpi,carrier,unit,value,source
+S0,2025,meta,meta,solved,,bool,1.0,results/lueneburg/S0/networks/solved_2025.nc
+S0,2025,LG,demand,electricity_for_heat,heat_pump+resistive,GWh,411.343,statistics.withdrawal
+S0,2025,LG,capacity,installed,onwind,MW,265.54,statistics
+S0,2025,LG,capacity,optimal,onwind,MW,266.054,statistics
+S0,2025,LG,capacity,new,onwind,MW,0.514,statistics
+S0,2025,LG,capacity,installed,solar,MW,229.667,statistics
+S0,2025,LG,capacity,optimal,solar,MW,234.563,statistics
+S0,2025,LG,capacity,new,solar,MW,4.895,statistics
+S0,2025,LG,capacity,installed,heat_pump,MW,0.0,statistics
+S0,2025,LG,capacity,optimal,heat_pump,MW,46.166,statistics
+S0,2025,LG,capacity,new,heat_pump,MW,46.166,statistics
+S0,2025,LG,capacity,installed,boiler_fossil,MW,0.0,statistics
+S0,2025,LG,capacity,optimal,boiler_fossil,MW,0.0,statistics
+S0,2025,LG,capacity,new,boiler_fossil,MW,0.0,statistics
+S0,2025,LG,storage,energy_capacity,battery,MWh,8.787,stores
+S0,2025,LG,storage,energy_capacity,heat_tes,MWh,991.958,stores
+S0,2025,LG,demand,electricity_ev,land transport EV,GWh,40.185,loads_t.p_set
+S0,2025,LG,imports,net_electricity_from_DE_rest,AC,GWh,161.901,lines_t/links_t vs DE-restAC
+S0,2025,LG,imports,peak_import_from_DE_rest,AC,MW,164.655,lines_t/links_t vs DE-restAC
+S0,2025,system,cost,objective,,EUR,92573556582.66678,n.objective
+S0,2025,system,cost,annualised_capex_opex,,EUR/a,167775461456.06995,statistics
+S0,2025,system,co2,note,,-,0.0,use statistics.energy_balance / CO2Limit in post
+S1,2040,meta,meta,solved,,bool,1.0,results/lueneburg/S1/networks/solved_2040.nc
+S1,2040,LG,demand,electricity_for_heat,heat_pump+resistive,GWh,363.911,statistics.withdrawal
+S1,2040,LG,capacity,installed,onwind,MW,265.54,statistics
+S1,2040,LG,capacity,optimal,onwind,MW,320.5,statistics
+S1,2040,LG,capacity,new,onwind,MW,54.96,statistics
+S1,2040,LG,capacity,installed,solar,MW,229.668,statistics
+S1,2040,LG,capacity,optimal,solar,MW,755.355,statistics
+S1,2040,LG,capacity,new,solar,MW,525.687,statistics
+S1,2040,LG,capacity,installed,heat_pump,MW,0.0,statistics
+S1,2040,LG,capacity,optimal,heat_pump,MW,89.177,statistics
+S1,2040,LG,capacity,new,heat_pump,MW,89.177,statistics
+S1,2040,LG,capacity,installed,boiler_fossil,MW,0.0,statistics
+S1,2040,LG,capacity,optimal,boiler_fossil,MW,0.0,statistics
+S1,2040,LG,capacity,new,boiler_fossil,MW,0.0,statistics
+S1,2040,LG,storage,energy_capacity,battery,MWh,4340.38,stores
+S1,2040,LG,storage,energy_capacity,heat_tes,MWh,2150.66,stores
+S1,2040,LG,demand,electricity_ev,land transport EV,GWh,562.586,loads_t.p_set
+S1,2040,LG,imports,net_electricity_from_DE_rest,AC,GWh,-44736.298,lines_t/links_t vs DE-restAC
+S1,2040,LG,imports,peak_import_from_DE_rest,AC,MW,490.008,lines_t/links_t vs DE-restAC
+S1,2040,system,cost,objective,,EUR,113257296553.66074,n.objective
+S1,2040,system,cost,annualised_capex_opex,,EUR/a,154058452368.3437,statistics
+S1,2040,system,co2,note,,-,0.0,use statistics.energy_balance / CO2Limit in post
+baseline,2025,LG,baseline,energiemonitor_verbrauch,electricity,GWh,521.0,Data/Electricity/energiemonitor
+baseline,2025,LG,baseline,mastr_installed,onwind,MW,265.54,/Users/felixmergenhagen/Desktop/Work/Waermeziel/V2.0_PyPsa/Data/Electricity/lueneburg_existing_capacity.csv
+baseline,2025,LG,baseline,mastr_installed,solar,MW,78.911,/Users/felixmergenhagen/Desktop/Work/Waermeziel/V2.0_PyPsa/Data/Electricity/lueneburg_existing_capacity.csv
+baseline,2025,LG,baseline,mastr_installed,biomass,MW,38.125,/Users/felixmergenhagen/Desktop/Work/Waermeziel/V2.0_PyPsa/Data/Electricity/lueneburg_existing_capacity.csv
