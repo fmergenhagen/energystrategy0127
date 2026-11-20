@@ -21,6 +21,8 @@ import numpy as np
 import pandas as pd
 import pypsa
 from shapely.geometry import Point
+from shapely.ops import unary_union
+from shapely.validation import make_valid
 
 logger = logging.getLogger(__name__)
 
@@ -148,11 +150,72 @@ def add_synthetic_buses(
     return n, new_buses
 
 
+def _carve_landkreis(
+    regions: gpd.GeoDataFrame, nodes: gpd.GeoDataFrame, n01_bus: str
+) -> gpd.GeoDataFrame:
+    """Make the real buses' regions consistent with the N01..N11 polygons.
+
+    WHY: the UW Lüneburg bus (→ N01) kept its OSM Voronoi region (~1190 km²,
+    most of the Landkreis plus parts of LK Harburg), while N02–N11 got their own
+    polygons on top. Landkreis area was counted twice (N01 + N02–N11; total
+    2444 km² vs 1325 km²), inflating N01's wind/solar potential (~1 GW onwind
+    in a 71 km² city) and anything distributed by region (population, industry).
+
+    Fix: N01 bus region = N01 polygon; the Landkreis is cut out of every other
+    region; the part of the old UW Lüneburg region outside the Landkreis goes to
+    the neighbouring real-bus region sharing the longest border with it.
+    """
+    lk = make_valid(unary_union([make_valid(g) for g in nodes.geometry]))
+    regions = regions.copy()
+    is_n01 = regions["name"] == n01_bus
+    if is_n01.sum() != 1:
+        raise RuntimeError(f"expected one region for {n01_bus}, got {int(is_n01.sum())}")
+    leftover = make_valid(regions.loc[is_n01, "geometry"].iloc[0].difference(lk))
+
+    others = regions.index[~is_n01]
+    regions.loc[others, "geometry"] = [
+        make_valid(g.difference(lk)) for g in regions.loc[others, "geometry"]
+    ]
+    regions.loc[is_n01, "geometry"] = nodes.loc["N01", "geometry"]
+
+    parts = list(getattr(leftover, "geoms", [leftover])) if not leftover.is_empty else []
+    for part in parts:
+        if part.is_empty or part.geom_type not in ("Polygon", "MultiPolygon"):
+            continue
+        shared = regions.loc[others, "geometry"].map(
+            lambda g: g.boundary.intersection(part.boundary).length
+        )
+        target = shared.idxmax() if shared.max() > 0 else (
+            regions.loc[others, "geometry"].distance(part).idxmin()
+        )
+        regions.at[target, "geometry"] = make_valid(
+            unary_union([regions.at[target, "geometry"], part])
+        )
+        logger.info(
+            "N01 leftover outside Landkreis (%.4f deg²) → region %s",
+            part.area,
+            regions.at[target, "name"],
+        )
+
+    empty = regions.index[regions.geometry.is_empty]
+    if len(empty):
+        logger.warning(
+            "regions empty after carving out the Landkreis (bus inside LK but not N01): %s",
+            list(regions.loc[empty, "name"]),
+        )
+    return regions
+
+
 def extend_onshore_regions(
-    regions: gpd.GeoDataFrame, nodes: gpd.GeoDataFrame, new_buses: list[str]
+    regions: gpd.GeoDataFrame,
+    nodes: gpd.GeoDataFrame,
+    new_buses: list[str],
+    n01_bus: str | None = None,
 ) -> gpd.GeoDataFrame:
     """Append node polygons as regions named after the synthetic buses."""
     nodes = nodes.to_crs(regions.crs).set_index("name")
+    if n01_bus is not None:
+        regions = _carve_landkreis(regions, nodes, n01_bus)
     extras = []
     for name in new_buses:
         extras.append(
@@ -184,8 +247,9 @@ def run(
     nodes = gpd.read_file(nodes_path)
     edges = load_adjacency(adjacency_path, nodes_csv)
 
+    n01_bus = find_n01_bus(n, nodes.to_crs(4326).set_index("name").loc["N01", "geometry"])
     n, new_buses = add_synthetic_buses(n, nodes, edges, s_nom=s_nom)
-    regions = extend_onshore_regions(regions, nodes, new_buses)
+    regions = extend_onshore_regions(regions, nodes, new_buses, n01_bus=n01_bus)
 
     out_network.parent.mkdir(parents=True, exist_ok=True)
     out_regions.parent.mkdir(parents=True, exist_ok=True)
