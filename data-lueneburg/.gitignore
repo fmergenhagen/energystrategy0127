@@ -1,0 +1,15 @@
+# Study data for the Lüneburg PyPSA model: track scripts, READMEs and
+# derived/small CSVs. Large third-party raw downloads stay local only.
+.DS_Store
+__pycache__/
+
+# Heitkötter et al. 2019 supplementary material (1.2 GB, re-downloadable);
+# keep only the hand-made register file that lives in it
+Heat/supplementary_material_publication_heitkoetter_regionalised_heat_demand_p2h_capacities_20190910/*
+!Heat/supplementary_material_publication_heitkoetter_regionalised_heat_demand_p2h_capacities_20190910/Gemeinden_PLZ_AGS_Samtgemeinden_LK_Lueneburg_register_PTP_FW_Anteile(in).csv
+
+# Avacon Netzdaten (§23 EnWG publications, ~40 MB xlsx, re-downloadable)
+Electricity/Avacon/*.xlsx
+
+# dry-run network outputs (regenerable)
+*.nc
