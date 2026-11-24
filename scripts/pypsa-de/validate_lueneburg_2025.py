@@ -21,7 +21,7 @@ import pypsa
 pd.set_option("display.width", 220)
 PYPSA = Path(__file__).resolve().parents[2]  # .../pypsa-de
 NET = sys.argv[1] if len(sys.argv) > 1 else str(PYPSA / "results/lueneburg/S0/networks/solved_2025.nc")
-EM = str(PYPSA.parent / "Data/Electricity/energiemonitor") + "/"
+EM = str(PYPSA / "data-lueneburg/Electricity/energiemonitor") + "/"
 LG = [f"N{i:02d}AC" for i in range(1, 12)]
 
 # ---------------- reference: Energiemonitor 2025

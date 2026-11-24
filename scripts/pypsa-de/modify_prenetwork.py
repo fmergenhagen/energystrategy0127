@@ -503,8 +503,8 @@ def scale_lueneburg_base_year_electricity(n, lueneburg_cfg):
 def add_lueneburg_existing_batteries(n, lueneburg_cfg):
     """Base year: put MaStR battery stock on N01AC…N11AC home/grid batteries.
 
-    Reads Data/Electricity/lueneburg_existing_batteries.csv (inverter MW per node,
-    built by Data/Electricity/build_lueneburg_existing_batteries.py). Energy =
+    Reads data-lueneburg/Electricity/lueneburg_existing_batteries.csv (inverter MW per node,
+    built by data-lueneburg/Electricity/build_lueneburg_existing_batteries.py). Energy =
     MW x assumed hours (MaStR dump has no usable kWh). Sets p_nom/e_nom and the
     *_min bounds on the base-year units; with freeze_base_year they are fixed.
     """
@@ -512,7 +512,7 @@ def add_lueneburg_existing_batteries(n, lueneburg_cfg):
     bcfg = _as_dict(cfg.get("existing_batteries"))
     if not bcfg.get("enable"):
         return
-    path = Path(__file__).resolve().parents[3] / "Data" / "Electricity" / "lueneburg_existing_batteries.csv"
+    path = Path(__file__).resolve().parents[2] / "data-lueneburg" / "Electricity" / "lueneburg_existing_batteries.csv"
     if not path.exists():
         logger.warning("existing_batteries: %s missing — skip", path)
         return

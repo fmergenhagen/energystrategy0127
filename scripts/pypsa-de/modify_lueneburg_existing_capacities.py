@@ -5,7 +5,7 @@ WHY this file exists
 Under foresight: myopic, wind/PV brownfield come from IRENA×p_nom_max, not MaStR.
 That mis-allocates Landkreis capacity (and invents plant where there is none).
 After stock compose/baseyear, we overwrite LG buses from
-Data/Electricity/lueneburg_existing_capacity.csv and shrink DE-restAC by the
+data-lueneburg/Electricity/lueneburg_existing_capacity.csv and shrink DE-restAC by the
 same delta so DE totals stay roughly conserved.
 
 WHAT
@@ -26,7 +26,7 @@ import pypsa
 logger = logging.getLogger(__name__)
 
 PYPSA = Path(__file__).resolve().parents[2]
-CAPACITY_CSV = PYPSA.parent / "Data" / "Electricity" / "lueneburg_existing_capacity.csv"
+CAPACITY_CSV = PYPSA / "data-lueneburg" / "Electricity" / "lueneburg_existing_capacity.csv"
 REST = "DE-restAC"
 # CSV column → generator carrier name(s) to match
 CARRIERS = {

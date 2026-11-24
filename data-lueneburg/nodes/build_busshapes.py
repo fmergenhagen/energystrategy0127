@@ -4,7 +4,7 @@
 Filename encodes n_clusters=12 and electricity.base_network=osm.
 
 Run from pypsa-de/:
-    pixi run python ../Data/nodes/build_busshapes.py
+    pixi run python data-lueneburg/nodes/build_busshapes.py
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from shapely.validation import make_valid
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-PYPSA = ROOT / "pypsa-de"
+PYPSA = ROOT  # pypsa-de/
 
 NODES = HERE / "lueneburg_11_nodes.geojson"
 COUNTRY = (

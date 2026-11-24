@@ -26,7 +26,7 @@ USAGE (after solve)
     --s1 results/lueneburg/S1/networks/solved_2040.nc
 
 Falls back to composed_*.nc if solved missing (partial KPIs only).
-Writes Data/kpis/lueneburg_kpis.csv and Data/kpis/lueneburg_kpis.md
+Writes data-lueneburg/kpis/lueneburg_kpis.csv and data-lueneburg/kpis/lueneburg_kpis.md
 """
 
 import argparse
@@ -39,7 +39,7 @@ import pypsa
 logger = logging.getLogger(__name__)
 
 PYPSA = Path(__file__).resolve().parents[2]
-DATA = PYPSA.parent / "Data"
+DATA = PYPSA / "data-lueneburg"
 OUT_DIR = DATA / "kpis"
 LG = [f"N{i:02d}AC" for i in range(1, 12)]
 REST = "DE-restAC"
@@ -580,7 +580,7 @@ def main(argv=None) -> None:
             carrier="electricity",
             unit="GWh",
             value=521.0,
-            source="Data/Electricity/energiemonitor",
+            source="data-lueneburg/Electricity/energiemonitor",
         )
     )
     caps = DATA / "Electricity" / "lueneburg_existing_capacity.csv"

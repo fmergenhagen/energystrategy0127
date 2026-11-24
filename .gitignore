@@ -28,6 +28,8 @@ gurobi.log
 # Allowlist a small subset under data/pypsa-de.
 # Important: parent directories must be un-ignored for negations to take effect.
 !/data/pypsa-de/
+# Lüneburg study: custom_busshapes input (built by data-lueneburg/nodes/build_busshapes.py)
+!/data/busshapes/
 /cutouts
 /tmp
 doc/_build
@@ -77,6 +79,9 @@ d1gam3xoknrgr2.cloudfront.net/
 *.xls
 
 *.geojson
+# Lüneburg study inputs (must come after *.geojson to take effect)
+!/data/busshapes/*.geojson
+!/data-lueneburg/**/*.geojson
 
 *.ipynb
 

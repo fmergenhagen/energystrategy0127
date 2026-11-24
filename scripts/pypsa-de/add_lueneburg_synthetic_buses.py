@@ -1,7 +1,7 @@
 """Inject synthetic AC buses for Lüneburg nodes N02–N11 into the simplified network.
 
 N01 already has the real 380 kV UW Lüneburg substation. N02–N11 get a bus at the
-polygon centroid. Lines follow Data/nodes/Lueneburg_11_adjacency_matrix.csv.
+polygon centroid. Lines follow data-lueneburg/nodes/Lueneburg_11_adjacency_matrix.csv.
 Matching polygons are appended to onshore_regions_simplified so cluster_regions
 can dissolve them under custom_busshapes.
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 # __file__ = <repo>/pypsa-de/scripts/pypsa-de/add_lueneburg_synthetic_buses.py
 PYPSA = Path(__file__).resolve().parents[2]  # pypsa-de/
-DATA_NODES = PYPSA.parent / "Data" / "nodes"  # V2.0_PyPsa/Data/nodes/
+DATA_NODES = PYPSA / "data-lueneburg" / "nodes"  # pypsa-de/data-lueneburg/nodes/
 
 DEFAULT_NODES = DATA_NODES / "lueneburg_11_nodes.geojson"
 DEFAULT_ADJ = DATA_NODES / "Lueneburg_11_adjacency_matrix.csv"

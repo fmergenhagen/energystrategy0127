@@ -29,15 +29,11 @@ import xarray as xr
 logger = logging.getLogger(__name__)
 
 PYPSA = Path(__file__).resolve().parents[2]
-DATA = PYPSA.parent / "Data"
+DATA = PYPSA / "data-lueneburg"
 HEAT = DATA / "Heat"
-HEIT = (
-    HEAT
-    / "supplementary_material_publication_heitkoetter_regionalised_heat_demand_p2h_capacities_20190910"
-    / "04_results"
-    / "03_yearly_time_series"
-    / "01_time_series_based_on_long_term_average_temperatures"
-)
+# Tracked copy of the two Heitkötter et al. series for AGS 3355 (CC BY 4.0);
+# the full 1.2 GB package under Heat/supplementary_material_… is git-ignored.
+HEIT = HEAT / "heitkoetter_3355"
 ANNUAL_CSV = HEAT / "lueneburg_heat_demand_annual.csv"
 SPACE_CSV = HEIT / "yearly_time_series_space_heating_administrative_district_id=3355.csv"
 DHW_CSV = HEIT / "yearly_time_series_dhw_administrative_district_id=3355.csv"

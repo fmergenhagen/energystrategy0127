@@ -27,7 +27,7 @@ import xarray as xr
 logger = logging.getLogger(__name__)
 
 PYPSA = Path(__file__).resolve().parents[2]
-DATA = PYPSA.parent / "Data"
+DATA = PYPSA / "data-lueneburg"
 ANNUAL_CSV = DATA / "Electricity" / "lueneburg_el_demand_annual.csv"
 PROFILE_CSV = DATA / "Electricity" / "Avacon" / "load_profile_hourly_norm.csv"
 ANNUAL_GWH = 521.0

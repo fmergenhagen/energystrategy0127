@@ -1,0 +1,45 @@
+gemeinde,node,node_id,node_type
+Lüneburg-Zentrum,Hansestadt Lüneburg,N01,Einheitsgemeinde
+Lüneburg-Stadtrand,Hansestadt Lüneburg,N01,Einheitsgemeinde
+Bleckede,Bleckede,N02,Einheitsgemeinde
+Adendorf,Adendorf,N03,Einheitsgemeinde
+Amt Neuhaus,Amt Neuhaus,N04,Einheitsgemeinde
+Amelinghausen,Amelinghausen,N05,Samtgemeinde
+Betzendorf,Amelinghausen,N05,Samtgemeinde
+Oldendorf (Luhe),Amelinghausen,N05,Samtgemeinde
+Rehlingen,Amelinghausen,N05,Samtgemeinde
+Soderstorf,Amelinghausen,N05,Samtgemeinde
+Bardowick,Bardowick,N06,Samtgemeinde
+Barum,Bardowick,N06,Samtgemeinde
+Handorf,Bardowick,N06,Samtgemeinde
+Mechtersen,Bardowick,N06,Samtgemeinde
+Radbruch,Bardowick,N06,Samtgemeinde
+Vögelsen,Bardowick,N06,Samtgemeinde
+Wittorf,Bardowick,N06,Samtgemeinde
+Dahlenburg,Dahlenburg,N07,Samtgemeinde
+Boitze,Dahlenburg,N07,Samtgemeinde
+Dahlem,Dahlenburg,N07,Samtgemeinde
+Nahrendorf,Dahlenburg,N07,Samtgemeinde
+Reppenstedt,Gellersen,N08,Samtgemeinde
+Kirchgellersen,Gellersen,N08,Samtgemeinde
+Südergellersen,Gellersen,N08,Samtgemeinde
+Westergellersen,Gellersen,N08,Samtgemeinde
+Melbeck,Ilmenau,N09,Samtgemeinde
+Embsen,Ilmenau,N09,Samtgemeinde
+Barnstedt,Ilmenau,N09,Samtgemeinde
+Deutsch Evern,Ilmenau,N09,Samtgemeinde
+Barendorf,Ostheide,N10,Samtgemeinde
+Neetze,Ostheide,N10,Samtgemeinde
+Reinstorf,Ostheide,N10,Samtgemeinde
+Thomasburg,Ostheide,N10,Samtgemeinde
+Vastorf,Ostheide,N10,Samtgemeinde
+Wendisch Evern,Ostheide,N10,Samtgemeinde
+Bavendorf,Ostheide,N10,Samtgemeinde
+Scharnebeck,Scharnebeck,N11,Samtgemeinde
+Artlenburg,Scharnebeck,N11,Samtgemeinde
+Brietlingen,Scharnebeck,N11,Samtgemeinde
+Echem,Scharnebeck,N11,Samtgemeinde
+Hittbergen,Scharnebeck,N11,Samtgemeinde
+Hohnstorf (Elbe),Scharnebeck,N11,Samtgemeinde
+Lüdersburg,Scharnebeck,N11,Samtgemeinde
+Rullstorf,Scharnebeck,N11,Samtgemeinde

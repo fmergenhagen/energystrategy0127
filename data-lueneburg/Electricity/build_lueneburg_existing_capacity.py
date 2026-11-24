@@ -1,4 +1,4 @@
-"""Build Data/Electricity/lueneburg_existing_capacity.csv from MaStR (AGS 03355).
+"""Build data-lueneburg/Electricity/lueneburg_existing_capacity.csv from MaStR (AGS 03355).
 
 WHY: chunked read of full open-MaStR dump — grep extracts miss some wind rows.
 Source: pypsa-de/data/mastr/bnetza_open_mastr_2023-08-08_B_*.csv
@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]  # Data/
-MASTR = ROOT.parent / "pypsa-de" / "data" / "mastr"
+ROOT = Path(__file__).resolve().parents[1]  # pypsa-de/data-lueneburg/
+MASTR = ROOT.parent / "data" / "mastr"
 NODES = ROOT / "nodes" / "lueneburg_lau_to_node.csv"
 OUT = Path(__file__).resolve().parent / "lueneburg_existing_capacity.csv"
 

@@ -1,13 +1,13 @@
-"""Build Data/nodes/lueneburg_11_nodes.geojson from GISCO LAU 2019.
+"""Build data-lueneburg/nodes/lueneburg_11_nodes.geojson from GISCO LAU 2019.
 
 Run from the V2.0_PyPsa root (or any cwd; paths below are absolute to this file):
 
-    cd Data/nodes
-    ../../pypsa-de/.pixi/envs/default/bin/python build_lueneburg_nodes.py
+    cd data-lueneburg/nodes
+    ../../.pixi/envs/default/bin/python build_lueneburg_nodes.py
 
 Or, from pypsa-de/:
 
-    pixi run python ../Data/nodes/build_lueneburg_nodes.py
+    pixi run python data-lueneburg/nodes/build_lueneburg_nodes.py
 """
 
 from __future__ import annotations
@@ -24,9 +24,8 @@ import pandas as pd
 from shapely.validation import make_valid
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]  # V2.0_PyPsa
-PYPSA = ROOT / "pypsa-de"
-DIETER = Path("/Users/felixmergenhagen/Desktop/Work/Waermeziel/DIETER_WÄRME")
+ROOT = HERE.parents[1]  # pypsa-de/
+PYPSA = ROOT  # pypsa-de/
 
 LAU_ZIP = PYPSA / "data/lau_regions/archive/2019/lau_regions.zip"
 LAU_URL = (
@@ -34,7 +33,7 @@ LAU_URL = (
 )
 LAU_MEMBER = "LAU_RG_01M_2019_3035.geojson"
 
-MAPPING_CSV = DIETER / "V1/nodes/gemeinde_to_sg_mapping.csv"
+MAPPING_CSV = HERE / "gemeinde_to_sg_mapping.csv"  # Gemeinde → Samtgemeinde (copied from DIETER V1)
 NODES_CSV = HERE / "nodes.csv"
 NUTS3_GEOJSON = (
     PYPSA / "resources/test-sector-myopic-dach/KN2045_Mix/nuts3_shapes.geojson"

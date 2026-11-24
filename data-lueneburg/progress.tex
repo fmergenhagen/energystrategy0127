@@ -41,11 +41,11 @@ One step at a time; this file tracks what was done and what is next.
 \toprule
 Folder & Role & Key artefacts \\
 \midrule
-\texttt{Data/nodes/} & Topology & \texttt{nodes.csv}, \texttt{population.csv},
+\texttt{data-lueneburg/nodes/} & Topology & \texttt{nodes.csv}, \texttt{population.csv},
   \texttt{lueneburg\_11\_nodes.geojson}, adjacency CSV \\
-\texttt{Data/Electricity/energiemonitor/} & El.\ annual energy & Verbrauch $\approx$\,521\,GWh (2025) \\
-\texttt{Data/Electricity/Avacon/} & El.\ hourly shape & \texttt{load\_profile\_hourly\_norm.csv} (sums to 1) \\
-\texttt{Data/Heat/heitkötter\ldots/} & Heat annual + shape + DH hints & AGS\,3355 space+DHW series; FW-Anteile register \\
+\texttt{data-lueneburg/Electricity/energiemonitor/} & El.\ annual energy & Verbrauch $\approx$\,521\,GWh (2025) \\
+\texttt{data-lueneburg/Electricity/Avacon/} & El.\ hourly shape & \texttt{load\_profile\_hourly\_norm.csv} (sums to 1) \\
+\texttt{data-lueneburg/Heat/heitkötter\ldots/} & Heat annual + shape + DH hints & AGS\,3355 space+DHW series; FW-Anteile register \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -90,14 +90,14 @@ DE-only path kept. DE935 (NUTS3 Landkreis Lüneburg) has \textbf{one} $\ge$220\,
 (UW Lüneburg / OSM \texttt{way/28327356}), so nine further nodes need synthetic buses.
 
 \subsection{Step 2 --- node polygons}
-Script: \texttt{Data/nodes/build\_lueneburg\_nodes.py}.
+Script: \texttt{data-lueneburg/nodes/build\_lueneburg\_nodes.py}.
 LAU 2019 polygons with \texttt{LAU\_ID} starting \texttt{03355}, dissolved to 11 nodes.
 Tosterglope mapped into N07 (Dahlenburg); Bavendorf dropped.
 Outputs: \texttt{lueneburg\_11\_nodes.geojson}, \texttt{lueneburg\_lau\_to\_node.csv}.
 
 \subsection{Step 3 --- topology}
 \begin{itemize}[leftmargin=*]
-  \item \texttt{Data/nodes/build\_busshapes.py} $\to$
+  \item \texttt{data-lueneburg/nodes/build\_busshapes.py} $\to$
         \texttt{pypsa-de/data/busshapes/simplified\_12\_osm.geojson}
         (N01--N11 + DE-rest).
   \item Rule \texttt{add\_lueneburg\_synthetic\_buses}
@@ -159,7 +159,7 @@ Heat (Heitkötter) is \textbf{not} part of this step --- that is Step 6.
         \texttt{modifications.smk} $\to$ \texttt{electricity\_demand-modified.nc}
   \item \emph{One switch:} \texttt{input\_electricity\_demand()} used by
         \texttt{compose} and \texttt{time\_aggregation} when \texttt{lueneburg.enable}
-  \item Table: \texttt{Data/Electricity/lueneburg\_el\_demand\_annual.csv}
+  \item Table: \texttt{data-lueneburg/Electricity/lueneburg\_el\_demand\_annual.csv}
 \end{itemize}
 
 \begin{lstlisting}
@@ -190,7 +190,7 @@ Fernwärme register gives node DH shares. We overlay those and leave heating
         (all booked as residential; no services split in source).
   \item \textbf{Shape:} Heitkötter 15-min $\to$ hourly, hour-of-year onto model timestamps.
   \item \textbf{Spatial split:} population shares (same as electricity).
-  \item \textbf{DH share:} \texttt{Data/Heat/lueneburg\_dh\_share.csv} from Gemeinden
+  \item \textbf{DH share:} \texttt{data-lueneburg/Heat/lueneburg\_dh\_share.csv} from Gemeinden
         \texttt{Fernwaerme\_Anteil} (mean per node); urban fraction floored to DH share.
   \item \textbf{Conserve} DE totals via \texttt{DE-restAC}.
   \item \textbf{Tiny stock fix:} \texttt{build\_heat\_demand} maps \texttt{N**AC}$\to$DE
@@ -230,7 +230,7 @@ shrink \texttt{DE-restAC} by the same delta.
 }}
 
 \begin{itemize}[leftmargin=*]
-  \item Table: \texttt{Data/Electricity/lueneburg\_existing\_capacity.csv}
+  \item Table: \texttt{data-lueneburg/Electricity/lueneburg\_existing\_capacity.csv}
         (wind $\approx$266, solar $\approx$79, biomass $\approx$38\,MW nameplate In Betrieb).
   \item Energiemonitor peak-day (228/44/17) = sanity check only.
   \item Apply: \texttt{modify\_lueneburg\_existing\_capacities.apply\_if\_enabled}
@@ -406,7 +406,7 @@ pixi run python scripts/pypsa-de/compute_lueneburg_kpis.py \
         on N09 onwind + NaN boiler profiles) --- sanitized in
         \texttt{modify\_prenetwork}. Resume18 finished 8/8 steps
         (HiGHS status Unknown but solutions parsed).
-        KPIs: \texttt{Data/kpis/lueneburg\_kpis.\{csv,md\}}
+        KPIs: \texttt{data-lueneburg/kpis/lueneburg\_kpis.\{csv,md\}}
         (S0@2025 vs S1@2040).
 \end{description}
 

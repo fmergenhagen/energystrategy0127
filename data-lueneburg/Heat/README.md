@@ -15,4 +15,4 @@ Wired by `modify_heat_demand.py` and `modify_lueneburg_dh_share.py`
 S1 also injects **10.4 MW_th Abwasserwärme** (2 × 5.2 MW heat pumps) on `N01AC urban central heat`
 (from 2030) via `modify_prenetwork.add_lueneburg_wastewater_waste_heat`.
 
-Electricity demand is **not** here — see `Data/Electricity/`.
+Electricity demand is **not** here — see `data-lueneburg/Electricity/`.

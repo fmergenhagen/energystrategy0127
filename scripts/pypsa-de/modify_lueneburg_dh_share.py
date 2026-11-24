@@ -8,8 +8,8 @@ DE-rest keeps the egon-modified value.
 
 WHAT we use
 -----------
-- Horizon 2025: Data/Heat/lueneburg_dh_share.csv (today register)
-- Horizon ≥2040: Data/Heat/lueneburg_dh_share_2040.csv (pathway shares)
+- Horizon 2025: data-lueneburg/Heat/lueneburg_dh_share.csv (today register)
+- Horizon ≥2040: data-lueneburg/Heat/lueneburg_dh_share_2040.csv (pathway shares)
 - urban fraction floored to >= district fraction (stock convention)
 
 Runs after modify_district_heat_share; compose reads *-lueneburg.csv when enable.
@@ -24,7 +24,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 PYPSA = Path(__file__).resolve().parents[2]
-HEAT = PYPSA.parent / "Data" / "Heat"
+HEAT = PYPSA / "data-lueneburg" / "Heat"
 DH_CSV_TODAY = HEAT / "lueneburg_dh_share.csv"
 DH_CSV_2040 = HEAT / "lueneburg_dh_share_2040.csv"
 LG = [f"N{i:02d}AC" for i in range(1, 12)]
@@ -89,6 +89,6 @@ if __name__ == "__main__":
         # any modified file
         cands = sorted(base.glob("district_heat_share_*-modified.csv"))
         src = cands[0]
-    out = PYPSA.parent / "Data" / "Heat" / "step6_dryrun" / "district_heat_share-lueneburg.csv"
+    out = PYPSA / "data-lueneburg" / "Heat" / "step6_dryrun" / "district_heat_share-lueneburg.csv"
     run(src, out, horizon=2025)
     print("OK Step 6b dry-run", out)

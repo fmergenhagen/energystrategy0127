@@ -32,8 +32,8 @@
 #   no new gas/oil/coal/lignite plants or fossil CHPs there. DE-rest unchanged.
 #
 # DH shares: horizon-aware via modify_lueneburg_dh_share
-#   2025 → Data/Heat/lueneburg_dh_share.csv (today register)
-#   2040 → Data/Heat/lueneburg_dh_share_2040.csv (study pathway shares)
+#   2025 → data-lueneburg/Heat/lueneburg_dh_share.csv (today register)
+#   2040 → data-lueneburg/Heat/lueneburg_dh_share_2040.csv (study pathway shares)
 #
 # Myopic still builds 2025 then 2040 for both runs; KPI compare is S0@2025 vs S1@2040.
 

@@ -1,4 +1,4 @@
-"""Build Data/Electricity/lueneburg_existing_batteries.csv from MaStR (AGS 03355).
+"""Build data-lueneburg/Electricity/lueneburg_existing_batteries.csv from MaStR (AGS 03355).
 
 WHY: the 2025 base year should contain today's battery stock. Source is the
 open-MaStR dump used for the other capacities
@@ -16,8 +16,8 @@ from pathlib import Path
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[1]  # .../V2.0_PyPsa.nosync/Data
-MASTR = ROOT.parent / "pypsa-de" / "data" / "mastr" / "bnetza_open_mastr_2023-08-08_B_storage.csv"
+ROOT = Path(__file__).resolve().parents[1]  # pypsa-de/data-lueneburg/
+MASTR = ROOT.parent / "data" / "mastr" / "bnetza_open_mastr_2023-08-08_B_storage.csv"
 NODES = ROOT / "nodes" / "lueneburg_lau_to_node.csv"
 OUT = Path(__file__).resolve().parent / "lueneburg_existing_batteries.csv"
 HOME_MAX_KW = 30.0
